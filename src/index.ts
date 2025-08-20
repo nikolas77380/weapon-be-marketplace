@@ -1,4 +1,6 @@
-// import type { Core } from '@strapi/strapi';
+import type { Core } from "@strapi/strapi";
+import userServiceOverride from "./extensions/users-permissions/services/user";
+import authControllerOverride from "./extensions/users-permissions/controllers/auth";
 
 export default {
   /**
@@ -7,7 +9,12 @@ export default {
    *
    * This gives you an opportunity to extend code.
    */
-  register(/* { strapi }: { strapi: Core.Strapi } */) {},
+  register({ strapi }: { strapi: Core.Strapi }) {
+    console.log("Registering custom overrides");
+    userServiceOverride(strapi.plugins["users-permissions"]);
+    authControllerOverride(strapi.plugins["users-permissions"]);
+    console.log("Custom overrides registered");
+  },
 
   /**
    * An asynchronous bootstrap function that runs before

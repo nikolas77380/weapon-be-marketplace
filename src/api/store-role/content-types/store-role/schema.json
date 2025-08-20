@@ -1,0 +1,21 @@
+{
+  "kind": "collectionType",
+  "collectionName": "store_roles",
+  "info": {
+    "singularName": "store-role",
+    "pluralName": "store-roles",
+    "displayName": "storeRole"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "type": {
+      "type": "string"
+    },
+    "UUID": {
+      "type": "uid"
+    }
+  }
+}
