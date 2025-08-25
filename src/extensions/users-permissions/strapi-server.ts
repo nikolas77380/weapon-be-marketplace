@@ -4,58 +4,146 @@ export default (plugin) => {
     console.log("Custom register controller called");
     console.log("Request body:", ctx.request.body);
 
-    const { email, username, password, displayName, storeRole } =
-      ctx.request.body;
+    const { email, username, password, displayName, role } = ctx.request.body;
 
     // Validate required fields
-    if (!email || !username || !password || !displayName || !storeRole) {
+    if (!email || !username || !password || !displayName || !role) {
       console.log("Missing fields:", {
         email,
         username,
         password,
         displayName,
-        storeRole,
+        role,
       });
       return ctx.badRequest(
-        "Missing required fields: email, username, password, displayName, storeRole"
+        "Missing required fields: email, username, password, displayName, role"
       );
     }
 
     try {
-      // Create user with additional fields
+      // Get role ID from database
+      const roleEntity = await strapi.entityService.findMany(
+        "plugin::users-permissions.role",
+        {
+          filters: {
+            name: role,
+          },
+        }
+      );
+
+      if (!roleEntity || roleEntity.length === 0) {
+        console.log("Role not found:", role);
+        return ctx.badRequest(
+          `Role '${role}' not found. Please create it in Strapi Admin Panel first.`
+        );
+      }
+
+      const roleId = roleEntity[0].id;
+
+      // Create user with role
       const user = await strapi.plugins["users-permissions"].services.user.add({
         email,
         username,
         password,
         displayName,
-        storeRole,
         provider: "local",
         confirmed: true, // Auto-confirm users
-        role: 1, // Default authenticated role
+        role: roleId,
       });
+
+      // Get user with populated data
+      const userWithData = await strapi
+        .query("plugin::users-permissions.user")
+        .findOne({
+          where: { id: user.id },
+          populate: {
+            role: true,
+            metadata: {
+              populate: "*",
+            },
+          },
+        });
 
       // Generate JWT token
       const jwt = strapi.plugins["users-permissions"].services.jwt.issue({
         id: user.id,
       });
 
+      // Remove sensitive data
+      const {
+        password: _,
+        resetPasswordToken: __,
+        confirmationToken: ___,
+        ...userWithoutSensitiveData
+      } = userWithData;
+
       return {
         jwt,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          displayName: user.displayName,
-          storeRole: user.storeRole,
-          confirmed: user.confirmed,
-          blocked: user.blocked,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-        },
+        user: userWithoutSensitiveData,
       };
     } catch (error) {
       return ctx.badRequest(error.message);
     }
+  };
+
+  // Override the default callback controller
+  plugin.controllers.auth.callback = async (ctx) => {
+    const { identifier, password } = ctx.request.body;
+
+    const user = await strapi.query("plugin::users-permissions.user").findOne({
+      where: {
+        $or: [{ email: identifier.toLowerCase() }, { username: identifier }],
+      },
+      populate: {
+        role: true,
+        metadata: {
+          populate: "*",
+        },
+      },
+    });
+
+    if (!user) {
+      throw new Error("Invalid identifier or password");
+    }
+
+    const validPassword = await strapi.plugins[
+      "users-permissions"
+    ].services.user.validatePassword(password, user.password);
+
+    if (!validPassword) {
+      throw new Error("Invalid identifier or password");
+    }
+
+    if (!user.confirmed) {
+      throw new Error("Your account email is not confirmed");
+    }
+
+    if (user.blocked) {
+      throw new Error("Your account has been blocked by an administrator");
+    }
+
+    const jwt = strapi.plugins["users-permissions"].services.jwt.issue({
+      id: user.id,
+    });
+
+    // Remove sensitive data
+    const {
+      password: _,
+      resetPasswordToken: __,
+      confirmationToken: ___,
+      ...userWithoutSensitiveData
+    } = user;
+
+    return {
+      jwt,
+      user: userWithoutSensitiveData,
+    };
+  };
+
+  // Override the default user controller with our custom one
+  plugin.controllers.user = {
+    ...plugin.controllers.user,
+    ...require("./controllers/user").default,
   };
 
   return plugin;

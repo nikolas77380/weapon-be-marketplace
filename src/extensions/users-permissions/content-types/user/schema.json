@@ -71,17 +71,17 @@
       "minLength": 1,
       "required": true
     },
-    "storeRole": {
-      "type": "string",
-      "minLength": 1,
-      "required": true
-    },
     "metadata": {
       "type": "relation",
       "relation": "oneToOne",
       "target": "api::seller-meta.seller-meta",
       "mappedBy": "sellerEntity"
     },
-    "products": { "type": "relation", "relation": "oneToMany", "target": "api::product.product", "mappedBy": "seller" }
+    "products": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product.product",
+      "mappedBy": "seller"
+    }
   }
 }

@@ -8,27 +8,51 @@ export default (config, { strapi }) => {
       console.log("Auth middleware: Processing registration request");
       console.log("Request body:", ctx.request.body);
 
-      const { email, username, password, displayName, storeRole } =
-        ctx.request.body;
+      const { email, username, password, displayName, role } = ctx.request.body;
 
       // Validate required fields
-      if (!email || !username || !password || !displayName || !storeRole) {
+      if (!email || !username || !password || !displayName || !role) {
         console.log("Auth middleware: Missing required fields");
         return ctx.badRequest(
-          "Missing required fields: email, username, password, displayName, storeRole"
+          "Missing required fields: email, username, password, displayName, role"
         );
       }
 
+      // Validate role
+      if (!["seller", "buyer"].includes(role)) {
+        console.log("Auth middleware: Invalid role");
+        return ctx.badRequest("Invalid role. Must be 'seller' or 'buyer'");
+      }
+
       try {
-        // Create user with additional fields
+        // Get role ID from database
+        const roleEntity = await strapi.entityService.findMany(
+          "plugin::users-permissions.role",
+          {
+            filters: {
+              name: role,
+            },
+          }
+        );
+
+        if (!roleEntity || roleEntity.length === 0) {
+          console.log("Auth middleware: Role not found in database");
+          return ctx.badRequest(
+            `Role '${role}' not found. Please create it in Strapi Admin Panel first.`
+          );
+        }
+
+        const roleId = roleEntity[0].id;
+
+        // Create user with role
         const userData = {
           email,
           username,
           password,
           displayName,
-          storeRole,
+          provider: "local",
           confirmed: true, // Auto-confirm users
-          role: 1, // Default authenticated role
+          role: roleId,
         };
 
         console.log("Auth middleware: Creating user with data:", userData);
@@ -48,7 +72,7 @@ export default (config, { strapi }) => {
           "plugin::users-permissions.user",
           user.id,
           {
-            populate: "*",
+            populate: ["role", "metadata"],
           }
         );
 
@@ -67,11 +91,12 @@ export default (config, { strapi }) => {
             username: fullUser.username,
             email: fullUser.email,
             displayName: fullUser.displayName,
-            storeRole: fullUser.storeRole,
+            role: fullUser.role,
             confirmed: fullUser.confirmed,
             blocked: fullUser.blocked,
             createdAt: fullUser.createdAt,
             updatedAt: fullUser.updatedAt,
+            metadata: fullUser.metadata,
           },
         };
 
@@ -86,7 +111,7 @@ export default (config, { strapi }) => {
       }
     }
 
-    // For non-registration requests, continue to next middleware
+    // For all other requests, continue to next middleware
     await next();
   };
 };

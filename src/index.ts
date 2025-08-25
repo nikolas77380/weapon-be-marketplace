@@ -1,6 +1,5 @@
 import type { Core } from "@strapi/strapi";
 import userServiceOverride from "./extensions/users-permissions/services/user";
-import authControllerOverride from "./extensions/users-permissions/controllers/auth";
 
 export default {
   /**
@@ -12,7 +11,6 @@ export default {
   register({ strapi }: { strapi: Core.Strapi }) {
     console.log("Registering custom overrides");
     userServiceOverride(strapi.plugins["users-permissions"]);
-    authControllerOverride(strapi.plugins["users-permissions"]);
     console.log("Custom overrides registered");
   },
 
