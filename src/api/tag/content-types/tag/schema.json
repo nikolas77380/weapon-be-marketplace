@@ -1,0 +1,14 @@
+{
+    "kind": "collectionType",
+    "collectionName": "tags",
+    "info": { "singularName": "tag", "pluralName": "tags", "displayName": "Tag" },
+    "options": { "draftAndPublish": false },
+    "attributes": {
+      "name": { "type": "string", "required": true, "minLength": 1 },
+      "slug": { "type": "uid", "targetField": "name", "required": true, "unique": true },
+      "description": { "type": "text" },
+      "products": { "type": "relation", "relation": "manyToMany", "target": "api::product.product", "mappedBy": "tags" }
+
+    }
+  }
+  

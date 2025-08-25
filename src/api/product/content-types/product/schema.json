@@ -1,0 +1,40 @@
+{
+  "kind": "collectionType",
+  "collectionName": "products",
+  "info": { "singularName": "product", "pluralName": "products", "displayName": "Product" },
+  "options": { "draftAndPublish": true },
+  "attributes": {
+    "title": { "type": "string", "required": true, "minLength": 2 },
+    "slug": { "type": "uid", "targetField": "title", "required": true, "unique": true },
+    "sku": { "type": "string", "unique": true },
+    "description": { "type": "richtext" },
+    "price": { "type": "decimal", "default": 0, "min": 0 },
+    "currency": { "type": "string", "default": "USD" },
+    "images": { "type": "media", "multiple": true, "required": false, "allowedTypes": ["images"] },
+    "documents": { "type": "media", "multiple": true, "allowedTypes": ["files"] },
+    "category": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::category.category",
+      "inversedBy": "products"
+    },
+    "tags": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::tag.tag",
+      "inversedBy": "products"
+    },
+    "seller": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "products"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["available", "reserved", "sold", "archived"],
+      "default": "available"
+    },
+    "attributesJson": { "type": "json" }
+  }
+}

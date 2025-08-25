@@ -1,0 +1,45 @@
+{
+  "kind": "collectionType",
+  "collectionName": "seller_metas",
+  "info": {
+    "singularName": "seller-meta",
+    "pluralName": "seller-metas",
+    "displayName": "sellerMeta"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "sellerEntity": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "metadata"
+    },
+    "UUID": {
+      "type": "uid"
+    },
+    "specialisation": {
+      "type": "string"
+    },
+    "sellerDescription": {
+      "type": "text"
+    },
+    "companyName": {
+      "type": "string"
+    },
+    "webSite": {
+      "type": "string"
+    },
+    "phoneNumbers": {
+      "type": "text"
+    },
+    "country": {
+      "type": "string"
+    },
+    "address": {
+      "type": "text"
+    }
+  }
+}
