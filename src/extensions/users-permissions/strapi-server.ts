@@ -1,7 +1,9 @@
-export default (plugin) => {
+const sendbirdUtils = require("../../utils/sendbird");
+
+const strapiServerOverride = (plugin) => {
   // Override the default register controller
   plugin.controllers.auth.register = async (ctx) => {
-    console.log("Custom register controller called");
+    console.log("=== CUSTOM REGISTER CONTROLLER CALLED ===");
     console.log("Request body:", ctx.request.body);
 
     const { email, username, password, displayName, role } = ctx.request.body;
@@ -77,9 +79,43 @@ export default (plugin) => {
         ...userWithoutSensitiveData
       } = userWithData;
 
+      let sendbird = null;
+      console.log("=== STARTING SENDBIRD INTEGRATION ===");
+      try {
+        console.log("Calling sendbirdEnsureUser...");
+        await sendbirdUtils.ensureUser({
+          userId: user.id,
+          nickname: user.username || user.email,
+          profile_url: user.avatar?.url,
+        });
+        console.log("sendbirdEnsureUser completed successfully");
+
+        const ttl = process.env.SENDBIRD_SESSION_TTL_SECONDS || 86400;
+        console.log("Calling issueSessionToken...");
+        const { token, expires_at } = await sendbirdUtils.issueSessionToken({
+          userId: user.id,
+          ttlSeconds: ttl,
+        });
+        console.log("issueSessionToken completed successfully");
+
+        sendbird = {
+          app_id: process.env.SENDBIRD_APP_ID,
+          user_id: String(user.id),
+          session_token: token,
+          expires_at,
+        };
+        console.log("Sendbird data created:", sendbird);
+      } catch (e) {
+        console.error("=== SENDBIRD ERROR ===", e);
+        strapi.log.warn(
+          `Sendbird on register failed uid=${user.id}: ${e.message}`
+        );
+      }
+
       return {
         jwt,
         user: userWithoutSensitiveData,
+        sendbird,
       };
     } catch (error) {
       return ctx.badRequest(error.message);
@@ -126,17 +162,48 @@ export default (plugin) => {
       id: user.id,
     });
 
-    // Remove sensitive data
     const {
       password: _,
       resetPasswordToken: __,
       confirmationToken: ___,
       ...userWithoutSensitiveData
     } = user;
+    try {
+      await sendbirdUtils.ensureUser({
+        userId: user.id,
+        nickname: user.username || user.email,
+        profile_url: user.avatar?.url,
+      });
+    } catch (e) {
+      strapi.log.warn(
+        `Sendbird ensureUser on login failed uid=${user.id}: ${e.message}`
+      );
+    }
+
+    let sendbird;
+    try {
+      const ttl = process.env.SENDBIRD_SESSION_TTL_SECONDS || 86400;
+      const { token, expires_at } = await sendbirdUtils.issueSessionToken({
+        userId: user.id,
+        ttlSeconds: ttl,
+      });
+      sendbird = {
+        app_id: process.env.SENDBIRD_APP_ID,
+        user_id: String(user.id),
+        session_token: token,
+        expires_at,
+      };
+    } catch (e) {
+      strapi.log.warn(
+        `Sendbird session token issue failed uid=${user.id}: ${e.message}`
+      );
+      sendbird = null;
+    }
 
     return {
       jwt,
       user: userWithoutSensitiveData,
+      sendbird,
     };
   };
 
@@ -148,3 +215,5 @@ export default (plugin) => {
 
   return plugin;
 };
+
+export default strapiServerOverride;

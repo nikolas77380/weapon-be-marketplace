@@ -1,5 +1,6 @@
 import type { Core } from "@strapi/strapi";
 import userServiceOverride from "./extensions/users-permissions/services/user";
+import { ensureUser } from "./utils/sendbird";
 
 export default {
   /**
@@ -9,9 +10,10 @@ export default {
    * This gives you an opportunity to extend code.
    */
   register({ strapi }: { strapi: Core.Strapi }) {
-    console.log("Registering custom overrides");
+    console.log("=== REGISTERING CUSTOM OVERRIDES ===");
+    console.log("Registering user service override...");
     userServiceOverride(strapi.plugins["users-permissions"]);
-    console.log("Custom overrides registered");
+    console.log("Registering strapi server override...");
   },
 
   /**
@@ -134,5 +136,31 @@ export default {
         data: { parent: parentId },
       });
     }
+    strapi.db.lifecycles.subscribe({
+      models: ["plugin::users-permissions.user"], // Applies only to users in users-permissions
+
+      /**
+       * Lifecycle hook triggered after a new user is created.
+       * Ensures that a user profile is created with either the provided full name and bio
+       * or a default generated username and bio if missing.
+       * @param {any} event - The event object containing the created user's details.
+       */
+      async afterCreate(event) {
+        const { result } = event;
+        console.log("afterCreate result:", result);
+        try {
+          await ensureUser({
+            userId: result.id,
+            nickname: result.username || result.email,
+            profile_url: result.avatar?.url,
+          });
+          strapi.log.info(`Sendbird user ensured for uid=${result.id}`);
+        } catch (e) {
+          strapi.log.warn(
+            `Sendbird ensureUser failed for uid=${result.id}: ${e.message}`
+          );
+        }
+      },
+    });
   },
 };

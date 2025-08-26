@@ -21,11 +21,20 @@ export default factories.createCoreController(
         }
 
         // Check if user already has metadata
-        if (user.metadata) {
+        const existingMeta = await strapi.entityService.findMany(
+          "api::seller-meta.seller-meta",
+          {
+            filters: {
+              sellerEntity: user.id,
+            },
+          }
+        );
+
+        if (existingMeta.length > 0) {
           return ctx.badRequest("User already has seller metadata");
         }
 
-        // Create seller-meta
+        // Create seller-meta with proper relation
         const result = await strapi.entityService.create(
           "api::seller-meta.seller-meta",
           {
@@ -33,21 +42,12 @@ export default factories.createCoreController(
               ...ctx.request.body.data,
               sellerEntity: user.id,
             },
-          }
-        );
-
-        // Update user to link with the created metadata
-        await strapi.entityService.update(
-          "plugin::users-permissions.user",
-          user.id,
-          {
-            data: {
-              metadata: result.id,
+            populate: {
+              sellerEntity: true,
             },
           }
         );
 
-        // Return the created seller-meta
         return result;
       } catch (error) {
         console.error("Error creating seller-meta:", error);
@@ -68,20 +68,18 @@ export default factories.createCoreController(
           return ctx.forbidden("Only sellers can access seller metadata");
         }
 
-        // If user has metadata, return only their metadata
-        if (user.metadata) {
-          const result = await strapi.entityService.findOne(
-            "api::seller-meta.seller-meta",
-            user.metadata.id,
-            {
-              populate: "*",
-            }
-          );
-          return { data: [result] };
-        }
+        // Find seller-meta by sellerEntity relation
+        const sellerMeta = await strapi.entityService.findMany(
+          "api::seller-meta.seller-meta",
+          {
+            filters: {
+              sellerEntity: user.id,
+            },
+            populate: "*",
+          }
+        );
 
-        // If user doesn't have metadata, return empty array
-        return { data: [] };
+        return { data: sellerMeta };
       } catch (error) {
         console.error("Error finding seller-meta:", error);
         return ctx.badRequest(error.message);
@@ -104,11 +102,21 @@ export default factories.createCoreController(
         const { id } = ctx.params;
 
         // Check if the requested metadata belongs to the user
-        if (!user.metadata || user.metadata.id !== parseInt(id)) {
+        const sellerMeta = (await strapi.entityService.findOne(
+          "api::seller-meta.seller-meta",
+          id,
+          {
+            populate: {
+              sellerEntity: true,
+            },
+          }
+        )) as any;
+
+        if (!sellerMeta || sellerMeta.sellerEntity?.id !== user.id) {
           return ctx.forbidden("Access denied to this seller metadata");
         }
 
-        // Return the metadata
+        // Return the metadata with full population
         const result = await strapi.entityService.findOne(
           "api::seller-meta.seller-meta",
           id,
@@ -140,7 +148,17 @@ export default factories.createCoreController(
         const { id } = ctx.params;
 
         // Check if the requested metadata belongs to the user
-        if (!user.metadata || user.metadata.id !== parseInt(id)) {
+        const sellerMeta = (await strapi.entityService.findOne(
+          "api::seller-meta.seller-meta",
+          id,
+          {
+            populate: {
+              sellerEntity: true,
+            },
+          }
+        )) as any;
+
+        if (!sellerMeta || sellerMeta.sellerEntity?.id !== user.id) {
           return ctx.forbidden("Access denied to this seller metadata");
         }
 
@@ -176,23 +194,22 @@ export default factories.createCoreController(
         const { id } = ctx.params;
 
         // Check if the requested metadata belongs to the user
-        if (!user.metadata || user.metadata.id !== parseInt(id)) {
+        const sellerMeta = (await strapi.entityService.findOne(
+          "api::seller-meta.seller-meta",
+          id,
+          {
+            populate: {
+              sellerEntity: true,
+            },
+          }
+        )) as any;
+
+        if (!sellerMeta || sellerMeta.sellerEntity?.id !== user.id) {
           return ctx.forbidden("Access denied to this seller metadata");
         }
 
         // Delete the metadata
         await strapi.entityService.delete("api::seller-meta.seller-meta", id);
-
-        // Update user to remove metadata link
-        await strapi.entityService.update(
-          "plugin::users-permissions.user",
-          user.id,
-          {
-            data: {
-              metadata: null,
-            },
-          }
-        );
 
         return { success: true };
       } catch (error) {
