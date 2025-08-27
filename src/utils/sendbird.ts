@@ -3,7 +3,7 @@ const baseUrl = (): string =>
 
 const headers = (): Record<string, string> => ({
   "Content-Type": "application/json",
-  "Api-Token": process.env.SENDBIRD_CUSTOMER_API_TOKEN,
+  "Api-Token": process.env.SENDBIRD_API_TOKEN,
 });
 
 interface SbFetchInit extends RequestInit {
@@ -34,15 +34,25 @@ async function ensureUser({
   profile_url,
 }: EnsureUserParams): Promise<any> {
   try {
-    return await sbFetch(`/users`, {
+    const response = await fetch(`${baseUrl()}/users`, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Api-Token": process.env.SENDBIRD_API_TOKEN,
+      },
       body: JSON.stringify({
         user_id: String(userId),
         nickname: nickname || `user_${userId}`,
         profile_url,
-        issue_access_token: true,
       }),
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Sendbird API error: ${response.status} - ${errorText}`);
+    }
+
+    return await response.json();
   } catch (e: any) {
     if (
       String(e.message).includes("400") ||
@@ -63,15 +73,42 @@ async function issueSessionToken({
   userId,
   ttlSeconds,
 }: IssueSessionTokenParams): Promise<any> {
+  console.log("=== issueSessionToken called ===");
+  console.log("userId:", userId);
+  console.log("ttlSeconds:", ttlSeconds);
+  console.log("baseUrl():", baseUrl());
+
   const body: { expires_at?: number } = {};
   if (ttlSeconds && Number(ttlSeconds) > 0) {
     body.expires_at = Date.now() + Number(ttlSeconds) * 1000;
   }
-  const res = await sbFetch(`/users/${encodeURIComponent(userId)}/token`, {
+  console.log("Request body:", body);
+
+  const url = `${baseUrl()}/users/${encodeURIComponent(`${userId}`)}/token`;
+  console.log("Request URL:", url);
+  console.log("API Token exists:", !!process.env.SENDBIRD_API_TOKEN);
+
+  const res = await fetch(url, {
+    headers: {
+      "Content-Type": "application/json",
+      "Api-Token": process.env.SENDBIRD_API_TOKEN,
+    },
     method: "POST",
     body: JSON.stringify(body),
   });
-  return res;
+
+  console.log("Response status:", res.status);
+  console.log("Response ok:", res.ok);
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error("Sendbird API error response:", errorText);
+    throw new Error(`Sendbird API error: ${res.status} - ${errorText}`);
+  }
+
+  const responseData = await res.json();
+  console.log("Sendbird API response:", responseData);
+  return responseData;
 }
 
 export { ensureUser, issueSessionToken };

@@ -115,7 +115,7 @@ const strapiServerOverride = (plugin) => {
       return {
         jwt,
         user: userWithoutSensitiveData,
-        sendbird,
+        sendbirdSessionToken: sendbird?.session_token,
       };
     } catch (error) {
       return ctx.badRequest(error.message);
@@ -124,87 +124,113 @@ const strapiServerOverride = (plugin) => {
 
   // Override the default callback controller
   plugin.controllers.auth.callback = async (ctx) => {
-    const { identifier, password } = ctx.request.body;
-
-    const user = await strapi.query("plugin::users-permissions.user").findOne({
-      where: {
-        $or: [{ email: identifier.toLowerCase() }, { username: identifier }],
-      },
-      populate: {
-        role: true,
-        metadata: {
-          populate: "*",
-        },
-      },
-    });
-
-    if (!user) {
-      throw new Error("Invalid identifier or password");
-    }
-
-    const validPassword = await strapi.plugins[
-      "users-permissions"
-    ].services.user.validatePassword(password, user.password);
-
-    if (!validPassword) {
-      throw new Error("Invalid identifier or password");
-    }
-
-    if (!user.confirmed) {
-      throw new Error("Your account email is not confirmed");
-    }
-
-    if (user.blocked) {
-      throw new Error("Your account has been blocked by an administrator");
-    }
-
-    const jwt = strapi.plugins["users-permissions"].services.jwt.issue({
-      id: user.id,
-    });
-
-    const {
-      password: _,
-      resetPasswordToken: __,
-      confirmationToken: ___,
-      ...userWithoutSensitiveData
-    } = user;
     try {
-      await sendbirdUtils.ensureUser({
-        userId: user.id,
-        nickname: user.username || user.email,
-        profile_url: user.avatar?.url,
-      });
-    } catch (e) {
-      strapi.log.warn(
-        `Sendbird ensureUser on login failed uid=${user.id}: ${e.message}`
-      );
-    }
+      console.log("=== CUSTOM CALLBACK CONTROLLER CALLED ===");
+      console.log("Request body:", ctx.request.body);
+      const { identifier, password } = ctx.request.body;
 
-    let sendbird;
-    try {
-      const ttl = process.env.SENDBIRD_SESSION_TTL_SECONDS || 86400;
-      const { token, expires_at } = await sendbirdUtils.issueSessionToken({
-        userId: user.id,
-        ttlSeconds: ttl,
+      const user = await strapi
+        .query("plugin::users-permissions.user")
+        .findOne({
+          where: {
+            $or: [
+              { email: identifier.toLowerCase() },
+              { username: identifier },
+            ],
+          },
+          populate: {
+            role: true,
+            metadata: true,
+          },
+        });
+
+      if (!user) {
+        throw new Error("Invalid identifier or password");
+      }
+
+      const validPassword = await strapi.plugins[
+        "users-permissions"
+      ].services.user.validatePassword(password, user.password);
+
+      if (!validPassword) {
+        throw new Error("Invalid identifier or password");
+      }
+
+      if (!user.confirmed) {
+        throw new Error("Your account email is not confirmed");
+      }
+
+      if (user.blocked) {
+        throw new Error("Your account has been blocked by an administrator");
+      }
+
+      const jwt = strapi.plugins["users-permissions"].services.jwt.issue({
+        id: user.id,
       });
-      sendbird = {
-        app_id: process.env.SENDBIRD_APP_ID,
-        user_id: String(user.id),
-        session_token: token,
-        expires_at,
+
+      const {
+        password: _,
+        resetPasswordToken: __,
+        confirmationToken: ___,
+        ...userWithoutSensitiveData
+      } = user;
+      try {
+        await sendbirdUtils.ensureUser({
+          userId: user.id,
+          nickname: user.username || user.email,
+          profile_url: user.avatar?.url,
+        });
+      } catch (e) {
+        strapi.log.warn(
+          `Sendbird ensureUser on login failed uid=${user.id}: ${e.message}`
+        );
+      }
+
+      let sendbird;
+      try {
+        console.log("=== SENDBIRD LOGIN INTEGRATION ===");
+        console.log("User ID:", user.id);
+        console.log("SENDBIRD_APP_ID:", process.env.SENDBIRD_APP_ID);
+        console.log(
+          "SENDBIRD_API_TOKEN exists:",
+          !!process.env.SENDBIRD_API_TOKEN
+        );
+
+        const ttl = process.env.SENDBIRD_SESSION_TTL_SECONDS || 86400;
+        console.log("TTL:", ttl);
+
+        console.log("Calling issueSessionToken...");
+        const { token, expires_at } = await sendbirdUtils.issueSessionToken({
+          userId: user.id,
+          ttlSeconds: ttl,
+        });
+        console.log("Token received:", !!token);
+        console.log("Expires at:", expires_at);
+
+        sendbird = {
+          app_id: process.env.SENDBIRD_APP_ID,
+          user_id: String(user.id),
+          session_token: token,
+          expires_at,
+        };
+        console.log("Sendbird object created successfully");
+      } catch (e) {
+        console.error("=== SENDBIRD LOGIN ERROR ===", e);
+        strapi.log.warn(
+          `Sendbird session token issue failed uid=${user.id}: ${e.message}`
+        );
+        sendbird = null;
+      }
+      console.log("Final sendbird object:", sendbird);
+      return {
+        jwt,
+        user: userWithoutSensitiveData,
+        sendbirdSessionToken: sendbird?.session_token,
       };
-    } catch (e) {
-      strapi.log.warn(
-        `Sendbird session token issue failed uid=${user.id}: ${e.message}`
-      );
-      sendbird = null;
+    } catch (error) {
+      console.error("=== CALLBACK CONTROLLER ERROR ===", error);
+      return ctx.badRequest(error.message);
     }
-
-    return {
-      jwt,
-      user: userWithoutSensitiveData,
-      sendbird,
-    };
   };
 
   // Override the default user controller with our custom one

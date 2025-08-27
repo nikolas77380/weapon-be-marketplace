@@ -1,5 +1,6 @@
 import type { Core } from "@strapi/strapi";
 import userServiceOverride from "./extensions/users-permissions/services/user";
+import strapiServerOverride from "./extensions/users-permissions/strapi-server";
 import { ensureUser } from "./utils/sendbird";
 
 export default {
@@ -14,6 +15,7 @@ export default {
     console.log("Registering user service override...");
     userServiceOverride(strapi.plugins["users-permissions"]);
     console.log("Registering strapi server override...");
+    strapiServerOverride(strapi.plugins["users-permissions"]);
   },
 
   /**
@@ -148,12 +150,25 @@ export default {
       async afterCreate(event) {
         const { result } = event;
         console.log("afterCreate result:", result);
+        console.log(
+          "process.env.SENDBIRD_APP_ID:",
+          process.env.SENDBIRD_APP_ID
+        );
+        console.log(
+          "process.env.SENDBIRD_API_TOKEN:",
+          process.env.SENDBIRD_API_TOKEN
+        );
         try {
-          await ensureUser({
+          const createSendbirdUser = await ensureUser({
             userId: result.id,
-            nickname: result.username || result.email,
-            profile_url: result.avatar?.url,
+            nickname: result.username,
+            profile_url: "https://google.com",
           });
+
+          strapi.log.info(
+            `Sendbird result:`,
+            JSON.stringify(createSendbirdUser, null, 2)
+          );
           strapi.log.info(`Sendbird user ensured for uid=${result.id}`);
         } catch (e) {
           strapi.log.warn(
