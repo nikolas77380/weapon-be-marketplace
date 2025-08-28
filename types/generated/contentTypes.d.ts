@@ -468,8 +468,6 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     currency: Schema.Attribute.String & Schema.Attribute.DefaultTo<'USD'>;
     description: Schema.Attribute.RichText;
-    documents: Schema.Attribute.Media<'files', true>;
-    images: Schema.Attribute.Media<'images', true>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -490,9 +488,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'plugin::users-permissions.user'
     >;
     sku: Schema.Attribute.String & Schema.Attribute.Unique;
-    slug: Schema.Attribute.UID<'title'> &
-      Schema.Attribute.Required &
-      Schema.Attribute.Unique;
+    slug: Schema.Attribute.UID<'title'>;
     status: Schema.Attribute.Enumeration<
       ['available', 'reserved', 'sold', 'archived']
     > &

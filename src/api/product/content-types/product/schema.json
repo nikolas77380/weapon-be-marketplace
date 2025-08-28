@@ -1,17 +1,42 @@
 {
   "kind": "collectionType",
   "collectionName": "products",
-  "info": { "singularName": "product", "pluralName": "products", "displayName": "Product" },
-  "options": { "draftAndPublish": true },
+  "info": {
+    "singularName": "product",
+    "pluralName": "products",
+    "displayName": "Product"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
   "attributes": {
-    "title": { "type": "string", "required": true, "minLength": 2 },
-    "slug": { "type": "uid", "targetField": "title", "required": true, "unique": true },
-    "sku": { "type": "string", "unique": true },
-    "description": { "type": "richtext" },
-    "price": { "type": "decimal", "default": 0, "min": 0 },
-    "currency": { "type": "string", "default": "USD" },
-    "images": { "type": "media", "multiple": true, "required": false, "allowedTypes": ["images"] },
-    "documents": { "type": "media", "multiple": true, "allowedTypes": ["files"] },
+    "title": {
+      "type": "string",
+      "minLength": 2,
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": false
+    },
+    "sku": {
+      "type": "string",
+      "unique": true
+    },
+    "description": {
+      "type": "richtext"
+    },
+    "price": {
+      "type": "decimal",
+      "default": 0,
+      "min": 0
+    },
+    "currency": {
+      "type": "string",
+      "default": "USD"
+    },
     "category": {
       "type": "relation",
       "relation": "manyToOne",
@@ -32,9 +57,16 @@
     },
     "status": {
       "type": "enumeration",
-      "enum": ["available", "reserved", "sold", "archived"],
-      "default": "available"
+      "default": "available",
+      "enum": [
+        "available",
+        "reserved",
+        "sold",
+        "archived"
+      ]
     },
-    "attributesJson": { "type": "json" }
+    "attributesJson": {
+      "type": "json"
+    }
   }
 }
