@@ -82,6 +82,24 @@
       "relation": "oneToMany",
       "target": "api::product.product",
       "mappedBy": "seller"
+    },
+    "sellerOrders": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::order.order",
+      "mappedBy": "seller"
+    },
+    "buyerOrders": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::order.order",
+      "mappedBy": "buyer"
+    },
+    "certificates": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::certificate.certificate",
+      "mappedBy": "seller"
     }
   }
 }

@@ -1,3 +1,5 @@
+import { createChannel } from "../../../utils/sendbird";
+
 export default {
   async me(ctx) {
     const user = ctx.state.user;

@@ -10,14 +10,24 @@ export default factories.createCoreController(
   ({ strapi }) => ({
     async create(ctx) {
       try {
-        // Получаем данные из запроса
-        const { data } = ctx.request.body;
-
         // Проверяем, что пользователь аутентифицирован
         if (!ctx.state.user) {
           return ctx.unauthorized(
             "User must be authenticated to create a product"
           );
+        }
+
+        // Получаем данные из запроса
+        let data;
+        if (ctx.request.body.data) {
+          // Если данные пришли как JSON строка (из FormData)
+          data =
+            typeof ctx.request.body.data === "string"
+              ? JSON.parse(ctx.request.body.data)
+              : ctx.request.body.data;
+        } else {
+          // Если данные пришли как обычный JSON объект
+          data = ctx.request.body;
         }
 
         // Добавляем продавца к данным продукта
@@ -48,20 +58,89 @@ export default factories.createCoreController(
           );
         }
 
-        // Создаем продукт
+        // Сначала создаем продукт без файлов
+        const createOptions: any = {
+          data: productData,
+          populate: {
+            category: true,
+            tags: true,
+            seller: true,
+            images: true,
+          },
+        };
+
+        console.log("Creating product without files first...");
         const product = await strapi.entityService.create(
           "api::product.product",
+          createOptions
+        );
+
+        console.log("Created product:", product);
+
+        // Если есть файлы, загружаем их отдельно и связываем с продуктом
+        if (ctx.request.files && ctx.request.files["files.images"]) {
+          console.log("Uploading files separately...");
+
+          const files = ctx.request.files["files.images"];
+          const uploadedFiles = [];
+
+          // Загружаем каждый файл
+          for (const file of Array.isArray(files) ? files : [files]) {
+            console.log(
+              "Uploading file:",
+              (file as any).name,
+              (file as any).size
+            );
+            const uploadedFile =
+              await strapi.plugins.upload.services.upload.upload({
+                data: {
+                  refId: product.id,
+                  ref: "api::product.product",
+                  field: "images",
+                },
+                files: file,
+              });
+            uploadedFiles.push(uploadedFile);
+          }
+
+          console.log("Uploaded files:", uploadedFiles);
+
+          // Обновляем продукт с информацией о загруженных файлах
+          const fileIds = uploadedFiles.flat().map((file) => file.id);
+          console.log("File IDs to link:", fileIds);
+
+          if (fileIds.length > 0) {
+            const updateResult = await strapi.entityService.update(
+              "api::product.product",
+              product.id,
+              {
+                data: {
+                  images: fileIds,
+                },
+              }
+            );
+
+            console.log("Product updated with file IDs:", updateResult);
+          }
+        }
+
+        // Получаем финальную версию продукта с изображениями
+        const finalProduct = await strapi.entityService.findOne(
+          "api::product.product",
+          product.id,
           {
-            data: productData,
             populate: {
               category: true,
               tags: true,
               seller: true,
+              images: true,
             },
           }
         );
 
-        return ctx.created(product);
+        console.log("Final product with images:", finalProduct);
+
+        return ctx.created(finalProduct);
       } catch (error) {
         console.error("Error creating product:", error);
         return ctx.internalServerError("Failed to create product");
@@ -78,6 +157,7 @@ export default factories.createCoreController(
           category: true,
           tags: true,
           seller: true,
+          images: true,
         };
 
         // Выполняем запрос с populate
@@ -108,6 +188,7 @@ export default factories.createCoreController(
               category: true,
               tags: true,
               seller: true,
+              images: true,
             },
           }
         );
@@ -126,7 +207,6 @@ export default factories.createCoreController(
     async update(ctx) {
       try {
         const { id } = ctx.params;
-        const { data } = ctx.request.body;
 
         // Проверяем, что пользователь аутентифицирован
         if (!ctx.state.user) {
@@ -134,6 +214,22 @@ export default factories.createCoreController(
             "User must be authenticated to update a product"
           );
         }
+
+        // Получаем данные из запроса
+        let data;
+        if (ctx.request.body.data) {
+          // Если данные пришли как JSON строка (из FormData)
+          data =
+            typeof ctx.request.body.data === "string"
+              ? JSON.parse(ctx.request.body.data)
+              : ctx.request.body.data;
+        } else {
+          // Если данные пришли как обычный JSON объект
+          data = ctx.request.body;
+        }
+
+        console.log("Update product data:", data);
+        console.log("Update files:", ctx.request.files);
 
         // Получаем продукт для проверки владельца
         const existingProduct = await strapi.entityService.findOne(
@@ -155,18 +251,28 @@ export default factories.createCoreController(
           data.slug = await generateUniqueSlug(strapi, data.title, id);
         }
 
-        // Обновляем продукт
+        // Обновляем продукт с файлами, если они есть
+        const updateOptions: any = {
+          data,
+          populate: {
+            category: true,
+            tags: true,
+            seller: true,
+            images: true,
+          },
+        };
+
+        // Если есть файлы, добавляем их к опциям обновления
+        if (ctx.request.files && ctx.request.files["files.images"]) {
+          updateOptions.files = {
+            images: ctx.request.files["files.images"],
+          };
+        }
+
         const product = await strapi.entityService.update(
           "api::product.product",
           id,
-          {
-            data,
-            populate: {
-              category: true,
-              tags: true,
-              seller: true,
-            },
-          }
+          updateOptions
         );
 
         return ctx.send(product);

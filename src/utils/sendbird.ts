@@ -111,4 +111,60 @@ async function issueSessionToken({
   return responseData;
 }
 
-export { ensureUser, issueSessionToken };
+interface CreateChannelParams {
+  sellerId: string | number;
+  buyerId: string | number;
+  channelName: string;
+}
+
+async function createChannel({
+  sellerId,
+  buyerId,
+  channelName,
+}: CreateChannelParams): Promise<any> {
+  console.log("=== createChannel called ===");
+  console.log("sellerId:", sellerId);
+  console.log("buyerId:", buyerId);
+  console.log("channelName:", channelName);
+
+  // Убеждаемся, что оба пользователя существуют в SendBird
+  await ensureUser({ userId: sellerId, nickname: `seller_${sellerId}` });
+  await ensureUser({ userId: buyerId, nickname: `buyer_${buyerId}` });
+
+  const channelData = {
+    name: channelName,
+    user_ids: [String(sellerId), String(buyerId)],
+    is_distinct: false,
+    is_public: false,
+    is_super: false,
+    is_ephemeral: false,
+    access_code: "",
+    data: "",
+    custom_type: "",
+  };
+
+  console.log("Channel data:", channelData);
+
+  const response = await fetch(`${baseUrl()}/group_channels`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Api-Token": process.env.SENDBIRD_API_TOKEN,
+    },
+    body: JSON.stringify(channelData),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Sendbird channel creation error:", errorText);
+    throw new Error(
+      `Sendbird channel creation error: ${response.status} - ${errorText}`
+    );
+  }
+
+  const channelResponse = await response.json();
+  console.log("Channel created successfully:", channelResponse);
+  return channelResponse;
+}
+
+export { ensureUser, issueSessionToken, createChannel };

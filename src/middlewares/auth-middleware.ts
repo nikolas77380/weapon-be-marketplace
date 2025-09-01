@@ -1,3 +1,5 @@
+const sendbirdUtils = require("../utils/sendbird");
+
 export default (config, { strapi }) => {
   return async (ctx, next) => {
     // Check if this is a registration request
@@ -83,6 +85,32 @@ export default (config, { strapi }) => {
           id: user.id,
         });
 
+        // Generate Sendbird session token
+        let sendbirdSessionToken = null;
+        try {
+          console.log("Auth middleware: Starting Sendbird integration");
+          await sendbirdUtils.ensureUser({
+            userId: user.id,
+            nickname: user.username || user.email,
+            profile_url: user.avatar?.url,
+          });
+          console.log("Auth middleware: Sendbird user ensured");
+
+          const ttl = process.env.SENDBIRD_SESSION_TTL_SECONDS || 86400;
+          const { token, expires_at } = await sendbirdUtils.issueSessionToken({
+            userId: user.id,
+            ttlSeconds: ttl,
+          });
+          console.log("Auth middleware: Sendbird session token generated");
+
+          sendbirdSessionToken = token;
+        } catch (e) {
+          console.error("Auth middleware: Sendbird error:", e);
+          strapi.log.warn(
+            `Sendbird on register failed uid=${user.id}: ${e.message}`
+          );
+        }
+
         // Return the response directly
         const response = {
           jwt,
@@ -98,6 +126,7 @@ export default (config, { strapi }) => {
             updatedAt: fullUser.updatedAt,
             metadata: fullUser.metadata,
           },
+          sendbirdSessionToken,
         };
 
         console.log("Auth middleware: Returning response:", response);
