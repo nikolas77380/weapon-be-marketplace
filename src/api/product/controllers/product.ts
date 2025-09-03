@@ -30,6 +30,14 @@ export default factories.createCoreController(
           data = ctx.request.body;
         }
 
+        console.log("Product data:", data);
+        console.log("Files:", ctx.request.files);
+        console.log("Files keys:", Object.keys(ctx.request.files || {}));
+        console.log(
+          "Files.images exists:",
+          !!ctx.request.files?.["files.images"]
+        );
+
         // Добавляем продавца к данным продукта
         const productData = {
           ...data,
@@ -125,6 +133,7 @@ export default factories.createCoreController(
         }
 
         // Получаем финальную версию продукта с изображениями
+        console.log("Fetching final product with ID:", product.id);
         const finalProduct = await strapi.entityService.findOne(
           "api::product.product",
           product.id,
@@ -139,6 +148,12 @@ export default factories.createCoreController(
         );
 
         console.log("Final product with images:", finalProduct);
+
+        // Если finalProduct null, возвращаем созданный продукт
+        if (!finalProduct) {
+          console.log("Final product is null, returning created product");
+          return ctx.created(product);
+        }
 
         return ctx.created(finalProduct);
       } catch (error) {

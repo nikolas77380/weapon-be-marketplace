@@ -31,7 +31,10 @@
       "type": "media",
       "multiple": false,
       "required": true,
-      "allowedTypes": ["files", "images"]
+      "allowedTypes": [
+        "files",
+        "images"
+      ]
     },
     "issuedBy": {
       "type": "string",

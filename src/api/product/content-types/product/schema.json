@@ -78,12 +78,20 @@
       "type": "media",
       "multiple": true,
       "required": false,
-      "allowedTypes": ["images"]
+      "allowedTypes": [
+        "images"
+      ]
     },
     "certificates": {
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::certificate.certificate",
+      "mappedBy": "product"
+    },
+    "favourites": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::favourite.favourite",
       "mappedBy": "product"
     }
   }
