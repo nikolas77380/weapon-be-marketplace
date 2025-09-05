@@ -326,23 +326,34 @@ export default factories.createCoreController(
         console.log("Update files:", ctx.request.files);
 
         // Получаем продукт для проверки владельца
+        const productId = Number(id);
+
         const existingProduct = await strapi.entityService.findOne(
           "api::product.product",
-          id
+          productId,
+          {
+            populate: {
+              seller: true,
+            },
+          }
         );
 
         if (!existingProduct) {
           return ctx.notFound("Product not found");
         }
 
+        // Приводим ID к числам для корректного сравнения
+        const productSellerId = Number((existingProduct as any).seller?.id);
+        const currentUserId = Number(ctx.state.user.id);
+
         // Проверяем, что пользователь является владельцем продукта
-        if ((existingProduct as any).seller?.id !== ctx.state.user.id) {
+        if (productSellerId !== currentUserId) {
           return ctx.forbidden("You can only update your own products");
         }
 
         // Генерируем новый slug, если заголовок изменился
         if (data.title && data.title !== (existingProduct as any).title) {
-          data.slug = await generateUniqueSlug(strapi, data.title, id);
+          data.slug = await generateUniqueSlug(strapi, data.title, productId);
         }
 
         // Обновляем продукт с файлами, если они есть
@@ -365,7 +376,7 @@ export default factories.createCoreController(
 
         const product = await strapi.entityService.update(
           "api::product.product",
-          id,
+          productId,
           updateOptions
         );
 
