@@ -631,6 +631,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    viewsCount: Schema.Attribute.BigInteger & Schema.Attribute.DefaultTo<0>;
   };
 }
 
@@ -703,6 +704,32 @@ export interface ApiTagTag extends Struct.CollectionTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+  };
+}
+
+export interface ApiViewView extends Struct.CollectionTypeSchema {
+  collectionName: 'views';
+  info: {
+    displayName: 'View';
+    pluralName: 'views';
+    singularName: 'view';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::view.view'> &
+      Schema.Attribute.Private;
+    productId: Schema.Attribute.String;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    userId: Schema.Attribute.String;
   };
 }
 
@@ -1242,6 +1269,7 @@ declare module '@strapi/strapi' {
       'api::product.product': ApiProductProduct;
       'api::seller-meta.seller-meta': ApiSellerMetaSellerMeta;
       'api::tag.tag': ApiTagTag;
+      'api::view.view': ApiViewView;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

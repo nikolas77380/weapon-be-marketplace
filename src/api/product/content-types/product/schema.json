@@ -93,6 +93,10 @@
       "relation": "oneToMany",
       "target": "api::favourite.favourite",
       "mappedBy": "product"
+    },
+    "viewsCount": {
+      "type": "biginteger",
+      "default": 0
     }
   }
 }

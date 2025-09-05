@@ -30,14 +30,6 @@ export default factories.createCoreController(
           data = ctx.request.body;
         }
 
-        console.log("Product data:", data);
-        console.log("Files:", ctx.request.files);
-        console.log("Files keys:", Object.keys(ctx.request.files || {}));
-        console.log(
-          "Files.images exists:",
-          !!ctx.request.files?.["files.images"]
-        );
-
         // Добавляем продавца к данным продукта
         const productData = {
           ...data,
@@ -211,6 +203,93 @@ export default factories.createCoreController(
         if (!product) {
           return ctx.notFound("Product not found");
         }
+
+        // Создаем запись о просмотре и увеличиваем счетчик
+        try {
+          // Получаем ID пользователя (если он аутентифицирован)
+          const userId = ctx.state.user?.id || "anonymous";
+
+          console.log("=== VIEW TRACKING START ===");
+          console.log("Creating view for product:", id, "user:", userId);
+
+          // Проверяем существование просмотра
+          const existingView = await strapi.entityService.findMany(
+            "api::view.view",
+            {
+              filters: {
+                userId: userId.toString(),
+                productId: id,
+              },
+              limit: 1,
+            }
+          );
+
+          let isNewView = false;
+          if (!existingView || existingView.length === 0) {
+            // Создаем новую запись о просмотре
+            await strapi.entityService.create("api::view.view", {
+              data: {
+                userId: userId.toString(),
+                productId: id,
+                publishedAt: new Date(),
+              },
+            });
+            isNewView = true;
+            console.log("New view created for user:", userId, "product:", id);
+          } else {
+            console.log(
+              "View already exists for user:",
+              userId,
+              "product:",
+              id
+            );
+          }
+
+          // Увеличиваем счетчик просмотров в продукте только для новых просмотров
+          if (isNewView) {
+            // Получаем актуальное значение счетчика из БД перед обновлением
+            const freshProduct = await strapi.entityService.findOne(
+              "api::product.product",
+              id,
+              {
+                fields: ["viewsCount"],
+              }
+            );
+
+            const currentViewsCount = Number(freshProduct?.viewsCount) || 0;
+            const newViewsCount = currentViewsCount + 1;
+
+            console.log("Current viewsCount from DB:", currentViewsCount);
+            console.log("Updating viewsCount to:", newViewsCount);
+
+            // Обновляем счетчик в БД
+            await strapi.entityService.update("api::product.product", id, {
+              data: {
+                viewsCount: newViewsCount,
+              },
+            });
+
+            // Обновляем объект продукта для ответа
+            (product as any).viewsCount = newViewsCount;
+            console.log(
+              "Product viewsCount updated successfully to:",
+              newViewsCount
+            );
+          } else {
+            console.log(
+              "Product viewsCount not updated (view already existed)"
+            );
+          }
+        } catch (viewError) {
+          // Логируем ошибку, но не прерываем выполнение
+          console.error("Error tracking view:", viewError);
+          console.error("View error details:", {
+            message: viewError.message,
+            stack: viewError.stack,
+          });
+        }
+
+        console.log("=== VIEW TRACKING END ===");
 
         return ctx.send(product);
       } catch (error) {

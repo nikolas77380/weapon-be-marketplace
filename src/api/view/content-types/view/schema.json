@@ -1,0 +1,21 @@
+{
+  "kind": "collectionType",
+  "collectionName": "views",
+  "info": {
+    "singularName": "view",
+    "pluralName": "views",
+    "displayName": "View"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "userId": {
+      "type": "string"
+    },
+    "productId": {
+      "type": "string"
+    }
+  }
+}
