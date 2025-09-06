@@ -1,4 +1,4 @@
-export default () => ({
+export default ({ env }) => ({
   "users-permissions": {
     config: {
       jwt: {
@@ -8,15 +8,18 @@ export default () => ({
   },
   upload: {
     config: {
-      provider: "aws-s3",
+      provider: "@strapi/provider-upload-aws-s3",
       providerOptions: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_ACCESS_SECRET,
-        region: process.env.AWS_REGION,
+        s3Options: {
+          region: env("AWS_REGION"),
+          credentials: {
+            accessKeyId: env("AWS_ACCESS_KEY_ID"),
+            secretAccessKey: env("AWS_ACCESS_SECRET"),
+          },
+        },
         params: {
+          Bucket: env("AWS_BUCKET"),
           ACL: "public-read",
-          signUrlExpires: 15 * 60,
-          Bucket: process.env.AWS_BUCKET,
         },
       },
       actionOptions: {
