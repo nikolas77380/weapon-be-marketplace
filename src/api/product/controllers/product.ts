@@ -10,34 +10,28 @@ export default factories.createCoreController(
   ({ strapi }) => ({
     async create(ctx) {
       try {
-        // Проверяем, что пользователь аутентифицирован
         if (!ctx.state.user) {
           return ctx.unauthorized(
             "User must be authenticated to create a product"
           );
         }
 
-        // Получаем данные из запроса
         let data;
         if (ctx.request.body.data) {
-          // Если данные пришли как JSON строка (из FormData)
           data =
             typeof ctx.request.body.data === "string"
               ? JSON.parse(ctx.request.body.data)
               : ctx.request.body.data;
         } else {
-          // Если данные пришли как обычный JSON объект
           data = ctx.request.body;
         }
 
-        // Добавляем продавца к данным продукта
         const productData = {
           ...data,
           seller: ctx.state.user.id,
           publishedAt: new Date(), // Автоматически публикуем продукт
         };
 
-        // Валидация обязательных полей
         if (!productData.title) {
           return ctx.badRequest("Title is required");
         }
@@ -50,7 +44,6 @@ export default factories.createCoreController(
           return ctx.badRequest("Valid price is required");
         }
 
-        // Генерируем уникальный slug, если он не предоставлен
         if (!productData.slug) {
           productData.slug = await generateUniqueSlug(
             strapi,
@@ -58,7 +51,6 @@ export default factories.createCoreController(
           );
         }
 
-        // Сначала создаем продукт без файлов
         const createOptions: any = {
           data: productData,
           populate: {
@@ -77,14 +69,12 @@ export default factories.createCoreController(
 
         console.log("Created product:", product);
 
-        // Если есть файлы, загружаем их отдельно и связываем с продуктом
         if (ctx.request.files && ctx.request.files["files.images"]) {
           console.log("Uploading files separately...");
 
           const files = ctx.request.files["files.images"];
           const uploadedFiles = [];
 
-          // Загружаем каждый файл
           for (const file of Array.isArray(files) ? files : [files]) {
             console.log(
               "Uploading file:",
@@ -105,7 +95,6 @@ export default factories.createCoreController(
 
           console.log("Uploaded files:", uploadedFiles);
 
-          // Обновляем продукт с информацией о загруженных файлах
           const fileIds = uploadedFiles.flat().map((file) => file.id);
           console.log("File IDs to link:", fileIds);
 
@@ -124,7 +113,6 @@ export default factories.createCoreController(
           }
         }
 
-        // Получаем финальную версию продукта с изображениями
         console.log("Fetching final product with ID:", product.id);
         const finalProduct = await strapi.entityService.findOne(
           "api::product.product",
@@ -141,7 +129,6 @@ export default factories.createCoreController(
 
         console.log("Final product with images:", finalProduct);
 
-        // Если finalProduct null, возвращаем созданный продукт
         if (!finalProduct) {
           console.log("Final product is null, returning created product");
           return ctx.created(product);
@@ -156,10 +143,8 @@ export default factories.createCoreController(
 
     async find(ctx) {
       try {
-        // Получаем параметры запроса
         const { query } = ctx;
 
-        // Добавляем populate для связанных данных
         const populate = {
           category: true,
           tags: true,
@@ -167,16 +152,53 @@ export default factories.createCoreController(
           images: true,
         };
 
-        // Выполняем запрос с populate
-        const products = await strapi.entityService.findMany(
+        const page = Number((query.pagination as any)?.page) || 1;
+        const pageSize = Number((query.pagination as any)?.pageSize) || 5;
+
+        const filters = { ...(query.filters as any) };
+
+        if ((query.filters as any)?.priceRange) {
+          const priceRange = (query.filters as any).priceRange;
+          if (priceRange.min !== undefined) {
+            filters.price = { ...filters.price, $gte: priceRange.min };
+          }
+          if (priceRange.max !== undefined) {
+            filters.price = { ...filters.price, $lte: priceRange.max };
+          }
+          delete filters.priceRange;
+        }
+
+        const totalCount = await strapi.entityService.count(
           "api::product.product",
           {
-            ...query,
-            populate,
+            filters,
           }
         );
 
-        return ctx.send(products);
+        const products = await strapi.entityService.findMany(
+          "api::product.product",
+          {
+            filters,
+            sort: query.sort,
+            populate,
+            start: (page - 1) * pageSize,
+            limit: pageSize,
+          }
+        );
+
+        const pageCount = Math.ceil(totalCount / pageSize);
+
+        return ctx.send({
+          data: products,
+          meta: {
+            pagination: {
+              page,
+              pageSize,
+              pageCount,
+              total: totalCount,
+            },
+          },
+        });
       } catch (error) {
         console.error("Error fetching products:", error);
         return ctx.internalServerError("Failed to fetch products");
@@ -204,15 +226,12 @@ export default factories.createCoreController(
           return ctx.notFound("Product not found");
         }
 
-        // Создаем запись о просмотре и увеличиваем счетчик
         try {
-          // Получаем ID пользователя (если он аутентифицирован)
           const userId = ctx.state.user?.id || "anonymous";
 
           console.log("=== VIEW TRACKING START ===");
           console.log("Creating view for product:", id, "user:", userId);
 
-          // Проверяем существование просмотра
           const existingView = await strapi.entityService.findMany(
             "api::view.view",
             {
@@ -226,7 +245,6 @@ export default factories.createCoreController(
 
           let isNewView = false;
           if (!existingView || existingView.length === 0) {
-            // Создаем новую запись о просмотре
             await strapi.entityService.create("api::view.view", {
               data: {
                 userId: userId.toString(),
@@ -245,9 +263,7 @@ export default factories.createCoreController(
             );
           }
 
-          // Увеличиваем счетчик просмотров в продукте только для новых просмотров
           if (isNewView) {
-            // Получаем актуальное значение счетчика из БД перед обновлением
             const freshProduct = await strapi.entityService.findOne(
               "api::product.product",
               id,
@@ -262,14 +278,12 @@ export default factories.createCoreController(
             console.log("Current viewsCount from DB:", currentViewsCount);
             console.log("Updating viewsCount to:", newViewsCount);
 
-            // Обновляем счетчик в БД
             await strapi.entityService.update("api::product.product", id, {
               data: {
                 viewsCount: newViewsCount,
               },
             });
 
-            // Обновляем объект продукта для ответа
             (product as any).viewsCount = newViewsCount;
             console.log(
               "Product viewsCount updated successfully to:",
@@ -281,7 +295,6 @@ export default factories.createCoreController(
             );
           }
         } catch (viewError) {
-          // Логируем ошибку, но не прерываем выполнение
           console.error("Error tracking view:", viewError);
           console.error("View error details:", {
             message: viewError.message,
@@ -302,30 +315,25 @@ export default factories.createCoreController(
       try {
         const { id } = ctx.params;
 
-        // Проверяем, что пользователь аутентифицирован
         if (!ctx.state.user) {
           return ctx.unauthorized(
             "User must be authenticated to update a product"
           );
         }
 
-        // Получаем данные из запроса
         let data;
         if (ctx.request.body.data) {
-          // Если данные пришли как JSON строка (из FormData)
           data =
             typeof ctx.request.body.data === "string"
               ? JSON.parse(ctx.request.body.data)
               : ctx.request.body.data;
         } else {
-          // Если данные пришли как обычный JSON объект
           data = ctx.request.body;
         }
 
         console.log("Update product data:", data);
         console.log("Update files:", ctx.request.files);
 
-        // Получаем продукт для проверки владельца
         const productId = Number(id);
 
         const existingProduct = await strapi.entityService.findOne(
@@ -342,21 +350,17 @@ export default factories.createCoreController(
           return ctx.notFound("Product not found");
         }
 
-        // Приводим ID к числам для корректного сравнения
         const productSellerId = Number((existingProduct as any).seller?.id);
         const currentUserId = Number(ctx.state.user.id);
 
-        // Проверяем, что пользователь является владельцем продукта
         if (productSellerId !== currentUserId) {
           return ctx.forbidden("You can only update your own products");
         }
 
-        // Генерируем новый slug, если заголовок изменился
         if (data.title && data.title !== (existingProduct as any).title) {
           data.slug = await generateUniqueSlug(strapi, data.title, productId);
         }
 
-        // Обновляем продукт с файлами, если они есть
         const updateOptions: any = {
           data,
           populate: {
@@ -367,7 +371,6 @@ export default factories.createCoreController(
           },
         };
 
-        // Если есть файлы, добавляем их к опциям обновления
         if (ctx.request.files && ctx.request.files["files.images"]) {
           updateOptions.files = {
             images: ctx.request.files["files.images"],
@@ -391,14 +394,12 @@ export default factories.createCoreController(
       try {
         const { id } = ctx.params;
 
-        // Проверяем, что пользователь аутентифицирован
         if (!ctx.state.user) {
           return ctx.unauthorized(
             "User must be authenticated to delete a product"
           );
         }
 
-        // Получаем продукт для проверки владельца
         const existingProduct = await strapi.entityService.findOne(
           "api::product.product",
           id
@@ -408,12 +409,10 @@ export default factories.createCoreController(
           return ctx.notFound("Product not found");
         }
 
-        // Проверяем, что пользователь является владельцем продукта
         if ((existingProduct as any).seller?.id !== ctx.state.user.id) {
           return ctx.forbidden("You can only delete your own products");
         }
 
-        // Удаляем продукт
         await strapi.entityService.delete("api::product.product", id);
 
         return ctx.send({ message: "Product deleted successfully" });
