@@ -3,11 +3,222 @@
  */
 
 import { factories } from "@strapi/strapi";
+import crypto from "crypto";
+
+const getAnonymousUserId = (ctx) => {
+  const ip =
+    ctx.request.ip || ctx.request.connection.remoteAddress || "unknown";
+  const userAgent = ctx.request.headers["user-agent"] || "";
+  const fingerprint = crypto
+    .createHash("md5")
+    .update(`${ip}-${userAgent}`)
+    .digest("hex");
+  return `anon_${fingerprint}`;
+};
 import { generateUniqueSlug } from "../../../utils/slug";
 
 export default factories.createCoreController(
   "api::product.product",
   ({ strapi }) => ({
+    async findPublic(ctx) {
+      try {
+        const { query } = ctx;
+
+        const populate = {
+          category: true,
+          tags: true,
+          seller: true,
+          images: true,
+        };
+
+        const page = Number((query.pagination as any)?.page) || 1;
+        const pageSize = Number((query.pagination as any)?.pageSize) || 5;
+
+        const filters = { ...(query.filters as any) };
+
+        // Handle category slug filter
+        if ((query.filters as any)?.categorySlug) {
+          const categorySlug = (query.filters as any).categorySlug;
+          const category = await strapi.entityService.findMany(
+            "api::category.category",
+            {
+              filters: { slug: categorySlug },
+            }
+          );
+
+          if (category && category.length > 0) {
+            filters.category = { $eq: category[0].id };
+          } else {
+            // If category not found, return empty results
+            return ctx.send({
+              data: [],
+              meta: {
+                pagination: {
+                  page: 1,
+                  pageSize: pageSize,
+                  pageCount: 0,
+                  total: 0,
+                },
+              },
+            });
+          }
+          delete filters.categorySlug;
+        }
+
+        if ((query.filters as any)?.priceRange) {
+          const priceRange = (query.filters as any).priceRange;
+          if (priceRange.min !== undefined) {
+            filters.price = { ...filters.price, $gte: priceRange.min };
+          }
+          if (priceRange.max !== undefined) {
+            filters.price = { ...filters.price, $lte: priceRange.max };
+          }
+          delete filters.priceRange;
+        }
+
+        const totalCount = await strapi.entityService.count(
+          "api::product.product",
+          {
+            filters,
+          }
+        );
+
+        const products = await strapi.entityService.findMany(
+          "api::product.product",
+          {
+            filters,
+            sort: query.sort,
+            populate,
+            start: (page - 1) * pageSize,
+            limit: pageSize,
+          }
+        );
+
+        const pageCount = Math.ceil(totalCount / pageSize);
+
+        return ctx.send({
+          data: products,
+          meta: {
+            pagination: {
+              page,
+              pageSize,
+              pageCount,
+              total: totalCount,
+            },
+          },
+        });
+      } catch (error) {
+        console.error("Error fetching public products:", error);
+        return ctx.internalServerError("Failed to fetch products");
+      }
+    },
+
+    async findOnePublic(ctx) {
+      try {
+        const { id } = ctx.params;
+
+        const product = await strapi.entityService.findOne(
+          "api::product.product",
+          id,
+          {
+            populate: {
+              category: true,
+              tags: true,
+              seller: true,
+              images: true,
+            },
+          }
+        );
+
+        if (!product) {
+          return ctx.notFound("Product not found");
+        }
+
+        // Трекинг просмотров для публичных пользователей
+        try {
+          const userId = getAnonymousUserId(ctx);
+
+          console.log("=== PUBLIC VIEW TRACKING START ===");
+          console.log("Creating view for product:", id, "user:", userId);
+
+          const existingView = await strapi.entityService.findMany(
+            "api::view.view",
+            {
+              filters: {
+                userId: userId.toString(),
+                productId: id,
+              },
+              limit: 1,
+            }
+          );
+
+          let isNewView = false;
+          if (!existingView || existingView.length === 0) {
+            await strapi.entityService.create("api::view.view", {
+              data: {
+                userId: userId.toString(),
+                productId: id,
+                publishedAt: new Date(),
+              },
+            });
+            isNewView = true;
+            console.log("New view created for user:", userId, "product:", id);
+          } else {
+            console.log(
+              "View already exists for user:",
+              userId,
+              "product:",
+              id
+            );
+          }
+
+          if (isNewView) {
+            const freshProduct = await strapi.entityService.findOne(
+              "api::product.product",
+              id,
+              {
+                fields: ["viewsCount"],
+              }
+            );
+
+            const currentViewsCount = Number(freshProduct?.viewsCount) || 0;
+            const newViewsCount = currentViewsCount + 1;
+
+            console.log("Current viewsCount from DB:", currentViewsCount);
+            console.log("Updating viewsCount to:", newViewsCount);
+
+            await strapi.entityService.update("api::product.product", id, {
+              data: {
+                viewsCount: newViewsCount,
+              },
+            });
+
+            (product as any).viewsCount = newViewsCount;
+            console.log(
+              "Product viewsCount updated successfully to:",
+              newViewsCount
+            );
+          } else {
+            console.log(
+              "Product viewsCount not updated (view already existed)"
+            );
+          }
+        } catch (viewError) {
+          console.error("Error tracking public view:", viewError);
+          console.error("View error details:", {
+            message: viewError.message,
+            stack: viewError.stack,
+          });
+        }
+
+        console.log("=== PUBLIC VIEW TRACKING END ===");
+
+        return ctx.send(product);
+      } catch (error) {
+        console.error("Error fetching public product:", error);
+        return ctx.internalServerError("Failed to fetch product");
+      }
+    },
     async create(ctx) {
       try {
         if (!ctx.state.user) {
@@ -227,7 +438,7 @@ export default factories.createCoreController(
         }
 
         try {
-          const userId = ctx.state.user?.id || "anonymous";
+          const userId = ctx.state.user?.id || getAnonymousUserId(ctx);
 
           console.log("=== VIEW TRACKING START ===");
           console.log("Creating view for product:", id, "user:", userId);

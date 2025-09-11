@@ -36,5 +36,26 @@ export default factories.createCoreController(
         ctx.throw(500, error);
       }
     },
+
+    async findBySlugPublic(ctx) {
+      try {
+        const { slug } = ctx.params;
+        const entity = await strapi.entityService.findMany(
+          "api::category.category",
+          {
+            filters: { slug },
+            populate: ["parent", "children"],
+          }
+        );
+
+        if (!entity || entity.length === 0) {
+          return ctx.notFound("Category not found");
+        }
+
+        return { data: entity[0] };
+      } catch (error) {
+        ctx.throw(500, error);
+      }
+    },
   })
 );

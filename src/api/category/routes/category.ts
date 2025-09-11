@@ -21,5 +21,13 @@ export default {
         auth: false,
       },
     },
+    {
+      method: "GET",
+      path: "/categories/public/slug/:slug",
+      handler: "category.findBySlugPublic",
+      config: {
+        auth: false,
+      },
+    },
   ],
 };

@@ -7,6 +7,108 @@ import { factories } from "@strapi/strapi";
 export default factories.createCoreController(
   "api::seller-meta.seller-meta",
   ({ strapi }) => ({
+    // Публичные методы (без аутентификации)
+    async findPublic(ctx) {
+      try {
+        const { query } = ctx;
+
+        const populate = {
+          sellerEntity: true,
+        };
+
+        const page = Number((query.pagination as any)?.page) || 1;
+        const pageSize = Number((query.pagination as any)?.pageSize) || 10;
+
+        const filters = { ...(query.filters as any) };
+
+        const totalCount = await strapi.entityService.count(
+          "api::seller-meta.seller-meta",
+          {
+            filters,
+          }
+        );
+
+        const sellerMetas = await strapi.entityService.findMany(
+          "api::seller-meta.seller-meta",
+          {
+            filters,
+            sort: query.sort || ["createdAt:desc"],
+            populate,
+            start: (page - 1) * pageSize,
+            limit: pageSize,
+          }
+        );
+
+        const pageCount = Math.ceil(totalCount / pageSize);
+
+        return ctx.send({
+          data: sellerMetas,
+          meta: {
+            pagination: {
+              page,
+              pageSize,
+              pageCount,
+              total: totalCount,
+            },
+          },
+        });
+      } catch (error) {
+        console.error("Error fetching public seller-metas:", error);
+        return ctx.internalServerError("Failed to fetch seller metadata");
+      }
+    },
+
+    async findOnePublic(ctx) {
+      try {
+        const { id } = ctx.params;
+
+        const sellerMeta = await strapi.entityService.findOne(
+          "api::seller-meta.seller-meta",
+          id,
+          {
+            populate: {
+              sellerEntity: true,
+            },
+          }
+        );
+
+        if (!sellerMeta) {
+          return ctx.notFound("Seller metadata not found");
+        }
+
+        return ctx.send(sellerMeta);
+      } catch (error) {
+        console.error("Error fetching public seller-meta:", error);
+        return ctx.internalServerError("Failed to fetch seller metadata");
+      }
+    },
+
+    async findBySellerPublic(ctx) {
+      try {
+        const { sellerId } = ctx.params;
+
+        const sellerMeta = await strapi.entityService.findMany(
+          "api::seller-meta.seller-meta",
+          {
+            filters: {
+              sellerEntity: sellerId,
+            },
+            populate: {
+              sellerEntity: true,
+            },
+          }
+        );
+
+        if (!sellerMeta || sellerMeta.length === 0) {
+          return ctx.notFound("Seller metadata not found");
+        }
+
+        return ctx.send({ data: sellerMeta });
+      } catch (error) {
+        console.error("Error fetching seller-meta by seller:", error);
+        return ctx.internalServerError("Failed to fetch seller metadata");
+      }
+    },
     async create(ctx) {
       try {
         // Get the authenticated user
