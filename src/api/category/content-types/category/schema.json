@@ -9,17 +9,17 @@
   "options": {
     "draftAndPublish": false
   },
+  "pluginOptions": {},
   "attributes": {
     "name": {
       "type": "string",
-      "required": true,
-      "minLength": 2
+      "minLength": 2,
+      "required": true
     },
     "slug": {
       "type": "uid",
       "targetField": "name",
-      "required": true,
-      "unique": true
+      "required": true
     },
     "description": {
       "type": "text"
@@ -45,6 +45,12 @@
     "order": {
       "type": "integer",
       "default": 0
+    },
+    "promos": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::promo.promo",
+      "mappedBy": "category"
     }
   }
 }

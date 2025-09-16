@@ -3,7 +3,6 @@ import { factories } from "@strapi/strapi";
 export default factories.createCoreController(
   "api::favourite.favourite",
   ({ strapi }) => ({
-    // Получить избранные продукты пользователя
     async find(ctx) {
       try {
         const { user } = ctx.state;
@@ -12,7 +11,6 @@ export default factories.createCoreController(
           return ctx.unauthorized("Authentication required");
         }
 
-        // Получаем избранное с populate
         const favourites = await strapi.entityService.findMany(
           "api::favourite.favourite",
           {
@@ -32,7 +30,6 @@ export default factories.createCoreController(
       }
     },
 
-    // Добавить продукт в избранное
     async create(ctx) {
       try {
         const { user } = ctx.state;
@@ -46,7 +43,6 @@ export default factories.createCoreController(
           return ctx.badRequest("Product ID is required");
         }
 
-        // Проверяем, существует ли уже такое избранное
         const existingFavourite = await strapi.entityService.findMany(
           "api::favourite.favourite",
           {
@@ -61,7 +57,6 @@ export default factories.createCoreController(
           return ctx.badRequest("Product already in favourites");
         }
 
-        // Проверяем, существует ли продукт
         const product = await strapi.entityService.findOne(
           "api::product.product",
           productId
@@ -70,7 +65,6 @@ export default factories.createCoreController(
           return ctx.notFound("Product not found");
         }
 
-        // Создаем новое избранное
         const favourite = await strapi.entityService.create(
           "api::favourite.favourite",
           {
@@ -88,7 +82,6 @@ export default factories.createCoreController(
       }
     },
 
-    // Удалить продукт из избранного
     async delete(ctx) {
       try {
         const { user } = ctx.state;
@@ -98,7 +91,6 @@ export default factories.createCoreController(
           return ctx.unauthorized("Authentication required");
         }
 
-        // Получаем избранное
         const favourite = await strapi.entityService.findOne(
           "api::favourite.favourite",
           id,
@@ -118,7 +110,6 @@ export default factories.createCoreController(
           return ctx.forbidden("Access denied");
         }
 
-        // Удаляем избранное
         await strapi.entityService.delete("api::favourite.favourite", id);
 
         return { success: true };
@@ -128,7 +119,6 @@ export default factories.createCoreController(
       }
     },
 
-    // Проверить, добавлен ли продукт в избранное
     async checkFavourite(ctx) {
       try {
         const { user } = ctx.state;

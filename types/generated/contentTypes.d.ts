@@ -440,10 +440,9 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
     order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     parent: Schema.Attribute.Relation<'manyToOne', 'api::category.category'>;
     products: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
+    promos: Schema.Attribute.Relation<'oneToMany', 'api::promo.promo'>;
     publishedAt: Schema.Attribute.DateTime;
-    slug: Schema.Attribute.UID<'name'> &
-      Schema.Attribute.Required &
-      Schema.Attribute.Unique;
+    slug: Schema.Attribute.UID<'name'> & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -632,6 +631,38 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     viewsCount: Schema.Attribute.BigInteger & Schema.Attribute.DefaultTo<0>;
+  };
+}
+
+export interface ApiPromoPromo extends Struct.CollectionTypeSchema {
+  collectionName: 'promos';
+  info: {
+    displayName: 'promo';
+    pluralName: 'promos';
+    singularName: 'promo';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    category: Schema.Attribute.Relation<'manyToOne', 'api::category.category'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+    isActive: Schema.Attribute.Boolean;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::promo.promo'> &
+      Schema.Attribute.Private;
+    productId: Schema.Attribute.String;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    userId: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
   };
 }
 
@@ -1231,6 +1262,7 @@ export interface PluginUsersPermissionsUser
         minLength: 6;
       }>;
     products: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
+    promos: Schema.Attribute.Relation<'oneToMany', 'api::promo.promo'>;
     provider: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     resetPasswordToken: Schema.Attribute.String & Schema.Attribute.Private;
@@ -1267,6 +1299,7 @@ declare module '@strapi/strapi' {
       'api::favourite.favourite': ApiFavouriteFavourite;
       'api::order.order': ApiOrderOrder;
       'api::product.product': ApiProductProduct;
+      'api::promo.promo': ApiPromoPromo;
       'api::seller-meta.seller-meta': ApiSellerMetaSellerMeta;
       'api::tag.tag': ApiTagTag;
       'api::view.view': ApiViewView;

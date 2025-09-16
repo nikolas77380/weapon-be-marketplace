@@ -106,6 +106,12 @@
       "relation": "oneToMany",
       "target": "api::favourite.favourite",
       "mappedBy": "user"
+    },
+    "promos": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::promo.promo",
+      "mappedBy": "userId"
     }
   }
 }
