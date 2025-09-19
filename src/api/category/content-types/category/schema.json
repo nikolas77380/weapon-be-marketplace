@@ -51,6 +51,16 @@
       "relation": "oneToMany",
       "target": "api::promo.promo",
       "mappedBy": "category"
+    },
+    "translate_ua": {
+      "type": "string"
+    },
+    "icon": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
     }
   }
 }

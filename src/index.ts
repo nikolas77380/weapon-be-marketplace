@@ -66,44 +66,186 @@ export default {
     // Seed Categories (flat create, then link parents)
     const categories: Record<
       string,
-      { name: string; parent?: string; order?: number }
+      { name: string; parent?: string; order?: number; translate_ua?: string }
     > = {
-      weapons: { name: "Weapons", order: 1 },
-      "small-arms": { name: "Small Arms", parent: "weapons", order: 1 },
-      pistols: { name: "Pistols", parent: "small-arms", order: 1 },
-      rifles: { name: "Rifles", parent: "small-arms", order: 2 },
+      weapons: { name: "Weapons", order: 1, translate_ua: "Стрілецька зброя" },
+
+      // Small Arms Categories
+      "small-arms": {
+        name: "Small Arms",
+        parent: "weapons",
+        order: 1,
+        translate_ua: "Стрілецька зброя",
+      },
+
+      // Pistols and Revolvers
+      "pistols-revolvers": {
+        name: "Pistols and Revolvers",
+        parent: "small-arms",
+        order: 1,
+        translate_ua: "Пістолети та револьвери",
+      },
+
+      // Submachine Guns
+      "submachine-guns": {
+        name: "Submachine Guns (SMG)",
+        parent: "small-arms",
+        order: 2,
+        translate_ua: "Пістолети-кулемети (ПП)",
+      },
+
+      // Shotguns
+      shotguns: {
+        name: "Shotguns",
+        parent: "small-arms",
+        order: 3,
+        translate_ua: "Гладкоствольна зброя (рушниці)",
+      },
+
+      // Carbines/Rifles
+      "carbines-rifles": {
+        name: "Carbines/Rifles",
+        parent: "small-arms",
+        order: 4,
+        translate_ua: "Карабіни/гвинтівки",
+      },
+
+      // Assault Rifles
+      "assault-rifles": {
+        name: "Assault Rifles (AR/AK-class)",
+        parent: "small-arms",
+        order: 5,
+        translate_ua: "Штурмові (AR/АК-клас)",
+      },
+
+      // Modular/PDW
+      "modular-pdw": {
+        name: "Modular/PDW",
+        parent: "small-arms",
+        order: 6,
+        translate_ua: "Модульні/PDW",
+      },
+
+      // Marksman Rifles
+      "marksman-rifles": {
+        name: "Marksman Rifles (DMR)",
+        parent: "small-arms",
+        order: 7,
+        translate_ua: "Марксманські (DMR)",
+      },
+
+      // Sniper Rifles
       "sniper-rifles": {
         name: "Sniper Rifles",
         parent: "small-arms",
-        order: 3,
+        order: 8,
+        translate_ua:
+          "Снайперські (болт/напівавтомат), анти-матеріальні (.50 тощо)",
       },
-      shotguns: { name: "Shotguns", parent: "small-arms", order: 4 },
-      "machine-guns": { name: "Machine Guns", parent: "small-arms", order: 5 },
 
-      "heavy-weapons": { name: "Heavy Weapons", parent: "weapons", order: 2 },
+      // Machine Guns
+      "machine-guns": {
+        name: "Machine Guns",
+        parent: "small-arms",
+        order: 9,
+        translate_ua: "Кулемети",
+      },
+      "light-machine-guns": {
+        name: "Light Machine Guns (LMG)",
+        parent: "machine-guns",
+        order: 1,
+        translate_ua: "Ручні (LMG)",
+      },
+      "general-purpose-mg": {
+        name: "General Purpose Machine Guns (GPMG)",
+        parent: "machine-guns",
+        order: 2,
+        translate_ua: "Єдині/станкові (GPMG)",
+      },
+      "heavy-machine-guns": {
+        name: "Heavy Machine Guns (HMG)",
+        parent: "machine-guns",
+        order: 3,
+        translate_ua: "Великокаліберні (HMG)",
+      },
+
+      // Grenade Launchers
       "grenade-launchers": {
         name: "Grenade Launchers",
-        parent: "heavy-weapons",
+        parent: "weapons",
+        order: 2,
+        translate_ua: "Гранатомети",
       },
-      "rocket-launchers": { name: "Rocket Launchers", parent: "heavy-weapons" },
-      "anti-tank": { name: "Anti-Tank Weapons", parent: "heavy-weapons" },
+      "underbarrel-grenade-launchers": {
+        name: "Underbarrel Grenade Launchers (40mm)",
+        parent: "grenade-launchers",
+        order: 1,
+        translate_ua: "Підствольні (40 мм)",
+      },
+      "handheld-grenade-launchers": {
+        name: "Handheld Multi-shot Grenade Launchers (RPG)",
+        parent: "grenade-launchers",
+        order: 2,
+        translate_ua: "Ручні багаторазові (РПГ)",
+      },
+      "disposable-grenade-launchers": {
+        name: "Disposable Grenade Launchers/FAUST",
+        parent: "grenade-launchers",
+        order: 3,
+        translate_ua: "Одноразові ППГ/фаустпатрони",
+      },
+      "automatic-grenade-launchers": {
+        name: "Automatic Grenade Launchers (AGS)",
+        parent: "grenade-launchers",
+        order: 4,
+        translate_ua: "АГС",
+      },
 
-      ammunition: { name: "Ammunition", order: 2 },
-      "small-arms-ammo": { name: "Small Arms Ammo", parent: "ammunition" },
-      "artillery-shells": { name: "Artillery Shells", parent: "ammunition" },
-      "mortar-shells": { name: "Mortar Shells", parent: "ammunition" },
-      missiles: { name: "Missiles", parent: "ammunition" },
+      // Anti-tank/Anti-material
+      "anti-tank-anti-material": {
+        name: "Anti-tank/Anti-material Small Unit Weapons",
+        parent: "weapons",
+        order: 3,
+        translate_ua: "Протитанкові/протиматеріальні засоби малих підрозділів",
+      },
+      "portable-atgm": {
+        name: "Portable Anti-tank Guided Missiles (ATGM)",
+        parent: "anti-tank-anti-material",
+        order: 1,
+        translate_ua: "ПТРК переносні",
+      },
+      "reactive-grenades": {
+        name: "Reactive Grenades",
+        parent: "anti-tank-anti-material",
+        order: 2,
+        translate_ua: "Реактивні гранати",
+      },
 
-      drones: { name: "Drones", order: 3 },
-      "recon-drones": { name: "Reconnaissance Drones", parent: "drones" },
-      "combat-drones": { name: "Combat Drones", parent: "drones" },
-      "kamikaze-drones": { name: "Kamikaze Drones", parent: "drones" },
-
-      vehicles: { name: "Vehicles", order: 4 },
-      "armored-vehicles": { name: "Armored Vehicles", parent: "vehicles" },
-      tanks: { name: "Tanks", parent: "vehicles" },
-      trucks: { name: "Trucks", parent: "vehicles" },
-      apc: { name: "APC (Armored Personnel Carriers)", parent: "vehicles" },
+      // Non-lethal Weapons
+      "non-lethal-weapons": {
+        name: "Non-lethal Weapons",
+        parent: "weapons",
+        order: 4,
+        translate_ua: "Нелетальні засоби",
+      },
+      "traumatic-weapons": {
+        name: "Traumatic Weapons",
+        parent: "non-lethal-weapons",
+        order: 1,
+        translate_ua: "Травматичні",
+      },
+      "rubber-bullets": {
+        name: "Rubber Bullets",
+        parent: "non-lethal-weapons",
+        order: 2,
+        translate_ua: "Гумові кулі",
+      },
+      "flash-bang": {
+        name: "Flash-bang Grenades",
+        parent: "non-lethal-weapons",
+        order: 3,
+        translate_ua: "Світлошумові",
+      },
     };
 
     // create or find
@@ -123,7 +265,12 @@ export default {
         const rec = await strapi.entityService.create(
           "api::category.category" as any,
           {
-            data: { name: def.name, slug, order: def.order ?? 0 },
+            data: {
+              name: def.name,
+              slug,
+              order: def.order ?? 0,
+              translate_ua: def.translate_ua || null,
+            },
           }
         );
         created[slug] = rec.id;

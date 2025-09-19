@@ -9,8 +9,14 @@ export default factories.createCoreController(
   ({ strapi }) => ({
     async findPublic(ctx) {
       try {
-        const { data, meta } = await super.find(ctx);
-        return { data, meta };
+        const entities = await strapi.entityService.findMany(
+          "api::category.category",
+          {
+            populate: ["parent", "children", "icon"],
+            sort: { order: "asc" },
+          }
+        );
+        return { data: entities };
       } catch (error) {
         ctx.throw(500, error);
       }
@@ -23,7 +29,7 @@ export default factories.createCoreController(
           "api::category.category",
           id,
           {
-            populate: ["parent", "children"],
+            populate: ["parent", "children", "icon"],
           }
         );
 
@@ -44,7 +50,7 @@ export default factories.createCoreController(
           "api::category.category",
           {
             filters: { slug },
-            populate: ["parent", "children"],
+            populate: ["parent", "children", "icon"],
           }
         );
 
