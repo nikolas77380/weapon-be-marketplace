@@ -47,9 +47,7 @@ export default {
       path: "/products",
       handler: "product.create",
       config: {
-        auth: {
-          scope: ["create"],
-        },
+        auth: {},
       },
     },
     {
