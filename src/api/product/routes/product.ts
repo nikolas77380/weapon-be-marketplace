@@ -55,9 +55,7 @@ export default {
       path: "/products/:id",
       handler: "product.update",
       config: {
-        auth: {
-          scope: ["update"],
-        },
+        auth: {},
       },
     },
     {
@@ -65,9 +63,7 @@ export default {
       path: "/products/:id",
       handler: "product.delete",
       config: {
-        auth: {
-          scope: ["delete"],
-        },
+        auth: {},
       },
     },
   ],
