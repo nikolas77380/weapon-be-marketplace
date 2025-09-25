@@ -17,6 +17,30 @@ const getAnonymousUserId = (ctx) => {
 };
 import { generateUniqueSlug } from "../../../utils/slug";
 
+// Функция для рекурсивного получения всех дочерних категорий
+const getAllChildCategoryIds = async (strapi, categoryId) => {
+  const childCategories = await strapi.entityService.findMany(
+    "api::category.category",
+    {
+      filters: { parent: { id: { $eq: categoryId } } },
+      fields: ["id"],
+    }
+  );
+
+  let allChildIds = childCategories.map((cat) => cat.id);
+
+  // Рекурсивно получаем дочерние категории для каждой найденной категории
+  for (const childCategory of childCategories) {
+    const grandChildIds = await getAllChildCategoryIds(
+      strapi,
+      childCategory.id
+    );
+    allChildIds = [...allChildIds, ...grandChildIds];
+  }
+
+  return allChildIds;
+};
+
 export default factories.createCoreController(
   "api::product.product",
   ({ strapi }) => ({
@@ -47,7 +71,19 @@ export default factories.createCoreController(
           );
 
           if (category && category.length > 0) {
-            filters.category = { $eq: category[0].id };
+            const mainCategoryId = category[0].id;
+
+            // Получаем все дочерние категории рекурсивно
+            const childCategoryIds = await getAllChildCategoryIds(
+              strapi,
+              mainCategoryId
+            );
+
+            // Создаем массив всех ID категорий (основная + дочерние)
+            const allCategoryIds = [mainCategoryId, ...childCategoryIds];
+
+            // Фильтруем продукты по всем категориям
+            filters.category = { $in: allCategoryIds };
           } else {
             // If category not found, return empty results
             return ctx.send({
@@ -367,6 +403,47 @@ export default factories.createCoreController(
         const pageSize = Number((query.pagination as any)?.pageSize) || 5;
 
         const filters = { ...(query.filters as any) };
+
+        // Handle category slug filter for authenticated users
+        if ((query.filters as any)?.categorySlug) {
+          const categorySlug = (query.filters as any).categorySlug;
+          const category = await strapi.entityService.findMany(
+            "api::category.category",
+            {
+              filters: { slug: categorySlug },
+            }
+          );
+
+          if (category && category.length > 0) {
+            const mainCategoryId = category[0].id;
+
+            // Получаем все дочерние категории рекурсивно
+            const childCategoryIds = await getAllChildCategoryIds(
+              strapi,
+              mainCategoryId
+            );
+
+            // Создаем массив всех ID категорий (основная + дочерние)
+            const allCategoryIds = [mainCategoryId, ...childCategoryIds];
+
+            // Фильтруем продукты по всем категориям
+            filters.category = { $in: allCategoryIds };
+          } else {
+            // If category not found, return empty results
+            return ctx.send({
+              data: [],
+              meta: {
+                pagination: {
+                  page: 1,
+                  pageSize: pageSize,
+                  pageCount: 0,
+                  total: 0,
+                },
+              },
+            });
+          }
+          delete filters.categorySlug;
+        }
 
         if ((query.filters as any)?.priceRange) {
           const priceRange = (query.filters as any).priceRange;
