@@ -77,18 +77,13 @@ export default factories.createCoreController(
           );
           return { data: entities };
         }
-
-        // Если категория не указана, возвращаем общие промо (без привязки к категории)
-        const filters: any = {
-          isActive: true,
-          publishedAt: { $notNull: true },
-          category: { $null: true },
-        };
-
         const entities = await strapi.entityService.findMany(
           "api::promo.promo",
           {
-            filters,
+            filters: {
+              isActive: true,
+              category: { id: { $null: true } },
+            },
             populate: ["image", "category"],
             sort: { createdAt: "desc" },
           }
