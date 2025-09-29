@@ -7,6 +7,142 @@ import { factories } from "@strapi/strapi";
 export default factories.createCoreController(
   "api::certificate.certificate",
   ({ strapi }) => ({
+    async findPublic(ctx) {
+      try {
+        const { query } = ctx;
+
+        const populate = {
+          certificateFile: true,
+          seller: true,
+          product: true,
+        };
+
+        const page = Number((query.pagination as any)?.page) || 1;
+        const pageSize = Number((query.pagination as any)?.pageSize) || 10;
+        const filters = { ...(query.filters as any) };
+
+        const totalCount = await strapi.entityService.count(
+          "api::certificate.certificate",
+          { filters }
+        );
+
+        const certificates = await strapi.entityService.findMany(
+          "api::certificate.certificate",
+          {
+            filters,
+            sort: query.sort,
+            populate,
+            start: (page - 1) * pageSize,
+            limit: pageSize,
+          }
+        );
+
+        const pageCount = Math.ceil(totalCount / pageSize);
+
+        return ctx.send({
+          data: certificates,
+          meta: {
+            pagination: { page, pageSize, pageCount, total: totalCount },
+          },
+        });
+      } catch (error) {
+        console.error("Error fetching public certificates:", error);
+        return ctx.internalServerError("Failed to fetch certificates");
+      }
+    },
+
+    async findOnePublic(ctx) {
+      try {
+        const { id } = ctx.params;
+        const certificate = await strapi.entityService.findOne(
+          "api::certificate.certificate",
+          id,
+          {
+            populate: {
+              certificateFile: true,
+              seller: true,
+              product: true,
+            },
+          }
+        );
+
+        if (!certificate) {
+          return ctx.notFound("Certificate not found");
+        }
+
+        return ctx.send(certificate);
+      } catch (error) {
+        console.error("Error fetching public certificate:", error);
+        return ctx.internalServerError("Failed to fetch certificate");
+      }
+    },
+
+    async find(ctx) {
+      try {
+        const { query } = ctx;
+        const populate = {
+          certificateFile: true,
+          seller: true,
+          product: true,
+        };
+
+        const page = Number((query.pagination as any)?.page) || 1;
+        const pageSize = Number((query.pagination as any)?.pageSize) || 10;
+        const filters = { ...(query.filters as any) };
+
+        const totalCount = await strapi.entityService.count(
+          "api::certificate.certificate",
+          { filters }
+        );
+
+        const certificates = await strapi.entityService.findMany(
+          "api::certificate.certificate",
+          {
+            filters,
+            sort: query.sort,
+            populate,
+            start: (page - 1) * pageSize,
+            limit: pageSize,
+          }
+        );
+
+        const pageCount = Math.ceil(totalCount / pageSize);
+        return ctx.send({
+          data: certificates,
+          meta: {
+            pagination: { page, pageSize, pageCount, total: totalCount },
+          },
+        });
+      } catch (error) {
+        console.error("Error fetching certificates:", error);
+        return ctx.internalServerError("Failed to fetch certificates");
+      }
+    },
+
+    async findOne(ctx) {
+      try {
+        const { id } = ctx.params;
+        const certificate = await strapi.entityService.findOne(
+          "api::certificate.certificate",
+          id,
+          {
+            populate: {
+              certificateFile: true,
+              seller: true,
+              product: true,
+            },
+          }
+        );
+        if (!certificate) {
+          return ctx.notFound("Certificate not found");
+        }
+        return ctx.send(certificate);
+      } catch (error) {
+        console.error("Error fetching certificate:", error);
+        return ctx.internalServerError("Failed to fetch certificate");
+      }
+    },
+
     async create(ctx) {
       try {
         console.log("Certificate controller: Creating certificate");
@@ -125,6 +261,184 @@ export default factories.createCoreController(
           error
         );
         return ctx.badRequest(error.message || "Failed to create certificate");
+      }
+    },
+
+    async update(ctx) {
+      try {
+        const { id } = ctx.params;
+        if (!ctx.state.user) {
+          return ctx.unauthorized(
+            "User must be authenticated to update a certificate"
+          );
+        }
+
+        let data;
+        if (ctx.request.body.data) {
+          data =
+            typeof ctx.request.body.data === "string"
+              ? JSON.parse(ctx.request.body.data)
+              : ctx.request.body.data;
+        } else {
+          data = ctx.request.body;
+        }
+
+        const existing = await strapi.entityService.findOne(
+          "api::certificate.certificate",
+          id,
+          { populate: { seller: true } }
+        );
+        if (!existing) {
+          return ctx.notFound("Certificate not found");
+        }
+        const ownerId = Number((existing as any).seller?.id);
+        const currentUserId = Number(ctx.state.user.id);
+        if (ownerId !== currentUserId) {
+          return ctx.forbidden("You can only update your own certificates");
+        }
+
+        const updateOptions: any = {
+          data,
+          populate: { certificateFile: true, seller: true, product: true },
+        };
+
+        if (ctx.request.files && ctx.request.files["files.certificateFile"]) {
+          updateOptions.files = {
+            certificateFile: ctx.request.files["files.certificateFile"],
+          };
+        }
+
+        const updated = await strapi.entityService.update(
+          "api::certificate.certificate",
+          Number(id),
+          updateOptions
+        );
+
+        return ctx.send(updated);
+      } catch (error) {
+        console.error("Error updating certificate:", error);
+        return ctx.internalServerError("Failed to update certificate");
+      }
+    },
+
+    async delete(ctx) {
+      try {
+        const { id } = ctx.params;
+        if (!ctx.state.user) {
+          return ctx.unauthorized(
+            "User must be authenticated to delete a certificate"
+          );
+        }
+
+        const existing = await strapi.entityService.findOne(
+          "api::certificate.certificate",
+          id,
+          { populate: { seller: true } }
+        );
+        if (!existing) {
+          return ctx.notFound("Certificate not found");
+        }
+        if ((existing as any).seller?.id !== ctx.state.user.id) {
+          return ctx.forbidden("You can only delete your own certificates");
+        }
+
+        await strapi.entityService.delete("api::certificate.certificate", id);
+        return ctx.send({ message: "Certificate deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting certificate:", error);
+        return ctx.internalServerError("Failed to delete certificate");
+      }
+    },
+
+    async listByUser(ctx) {
+      try {
+        const userIdParam = ctx.params.userId || ctx.query.userId;
+        const userId = Number(userIdParam);
+        if (!userId) {
+          return ctx.badRequest("userId is required");
+        }
+
+        const { query } = ctx;
+        const page = Number((query.pagination as any)?.page) || 1;
+        const pageSize = Number((query.pagination as any)?.pageSize) || 10;
+
+        const filters = {
+          ...(query.filters as any),
+          seller: { id: { $eq: userId } },
+        } as any;
+
+        const totalCount = await strapi.entityService.count(
+          "api::certificate.certificate",
+          { filters }
+        );
+
+        const certificates = await strapi.entityService.findMany(
+          "api::certificate.certificate",
+          {
+            filters,
+            start: (page - 1) * pageSize,
+            limit: pageSize,
+            sort: query.sort,
+            populate: { certificateFile: true, seller: true, product: true },
+          }
+        );
+
+        const pageCount = Math.ceil(totalCount / pageSize);
+        return ctx.send({
+          data: certificates,
+          meta: {
+            pagination: { page, pageSize, pageCount, total: totalCount },
+          },
+        });
+      } catch (error) {
+        console.error("Error listing certificates by user:", error);
+        return ctx.internalServerError("Failed to fetch certificates");
+      }
+    },
+
+    async listByProduct(ctx) {
+      try {
+        const productIdParam = ctx.params.productId || ctx.query.productId;
+        const productId = Number(productIdParam);
+        if (!productId) {
+          return ctx.badRequest("productId is required");
+        }
+
+        const { query } = ctx;
+        const page = Number((query.pagination as any)?.page) || 1;
+        const pageSize = Number((query.pagination as any)?.pageSize) || 10;
+
+        const filters = {
+          ...(query.filters as any),
+          product: { id: { $eq: productId } },
+        } as any;
+
+        const totalCount = await strapi.entityService.count(
+          "api::certificate.certificate",
+          { filters }
+        );
+
+        const certificates = await strapi.entityService.findMany(
+          "api::certificate.certificate",
+          {
+            filters,
+            start: (page - 1) * pageSize,
+            limit: pageSize,
+            sort: query.sort,
+            populate: { certificateFile: true, seller: true, product: true },
+          }
+        );
+
+        const pageCount = Math.ceil(totalCount / pageSize);
+        return ctx.send({
+          data: certificates,
+          meta: {
+            pagination: { page, pageSize, pageCount, total: totalCount },
+          },
+        });
+      } catch (error) {
+        console.error("Error listing certificates by product:", error);
+        return ctx.internalServerError("Failed to fetch certificates");
       }
     },
   })
