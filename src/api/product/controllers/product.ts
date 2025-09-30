@@ -690,7 +690,8 @@ export default factories.createCoreController(
 
         const existingProduct = await strapi.entityService.findOne(
           "api::product.product",
-          id
+          id,
+          { populate: { seller: true } }
         );
 
         if (!existingProduct) {
