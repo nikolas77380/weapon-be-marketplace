@@ -65,16 +65,6 @@ export default {
     },
     {
       method: "GET",
-      path: "/products/search",
-      handler: "product.search",
-      config: {
-        auth: {
-          scope: ["find"],
-        },
-      },
-    },
-    {
-      method: "GET",
       path: "/products/search/public",
       handler: "product.searchPublic",
       config: {

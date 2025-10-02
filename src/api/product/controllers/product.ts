@@ -58,7 +58,7 @@ export default factories.createCoreController(
         const page = Number((query.pagination as any)?.page) || 1;
         const pageSize = Number((query.pagination as any)?.pageSize) || 5;
 
-        const filters: any = { ...(query.filters as any) };
+        const filters = { ...(query.filters as any) };
 
         // Handle category slug filter
         if ((query.filters as any)?.categorySlug) {
@@ -402,7 +402,7 @@ export default factories.createCoreController(
         const page = Number((query.pagination as any)?.page) || 1;
         const pageSize = Number((query.pagination as any)?.pageSize) || 5;
 
-        const filters: any = { ...(query.filters as any) };
+        const filters = { ...(query.filters as any) };
 
         // Handle category slug filter for authenticated users
         if ((query.filters as any)?.categorySlug) {
