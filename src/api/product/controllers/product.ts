@@ -58,7 +58,7 @@ export default factories.createCoreController(
         const page = Number((query.pagination as any)?.page) || 1;
         const pageSize = Number((query.pagination as any)?.pageSize) || 5;
 
-        const filters = { ...(query.filters as any) };
+        const filters: any = { ...(query.filters as any) };
 
         // Handle category slug filter
         if ((query.filters as any)?.categorySlug) {
@@ -402,7 +402,7 @@ export default factories.createCoreController(
         const page = Number((query.pagination as any)?.page) || 1;
         const pageSize = Number((query.pagination as any)?.pageSize) || 5;
 
-        const filters = { ...(query.filters as any) };
+        const filters: any = { ...(query.filters as any) };
 
         // Handle category slug filter for authenticated users
         if ((query.filters as any)?.categorySlug) {
@@ -708,6 +708,226 @@ export default factories.createCoreController(
       } catch (error) {
         console.error("Error deleting product:", error);
         return ctx.internalServerError("Failed to delete product");
+      }
+    },
+
+    async search(ctx) {
+      try {
+        const { query } = ctx;
+        const searchTerm = query.search as string;
+
+        if (!searchTerm || searchTerm.trim().length === 0) {
+          return ctx.badRequest("Search term is required");
+        }
+
+        const populate = {
+          category: true,
+          tags: true,
+          seller: {
+            populate: {
+              metadata: true,
+            },
+          },
+          images: true,
+        };
+
+        const page = Number((query.pagination as any)?.page) || 1;
+        const pageSize = Number((query.pagination as any)?.pageSize) || 10;
+
+        // Создаем фильтры для поиска только по продуктам
+        const filters: any = {
+          $or: [
+            // Поиск по названию продукта
+            {
+              title: {
+                $containsi: searchTerm.trim(),
+              },
+            },
+            // Поиск по описанию продукта
+            {
+              description: {
+                $containsi: searchTerm.trim(),
+              },
+            },
+          ],
+        };
+
+        // Добавляем дополнительные фильтры если они есть
+        if ((query.filters as any)?.categorySlug) {
+          const categorySlug = (query.filters as any).categorySlug;
+          const category = await strapi.entityService.findMany(
+            "api::category.category",
+            {
+              filters: { slug: categorySlug },
+            }
+          );
+
+          if (category && category.length > 0) {
+            const mainCategoryId = category[0].id;
+            const childCategoryIds = await getAllChildCategoryIds(
+              strapi,
+              mainCategoryId
+            );
+            const allCategoryIds = [mainCategoryId, ...childCategoryIds];
+            filters.category = { $in: allCategoryIds };
+          }
+        }
+
+        if ((query.filters as any)?.priceRange) {
+          const priceRange = (query.filters as any).priceRange;
+          if (priceRange.min !== undefined) {
+            filters.price = { ...filters.price, $gte: priceRange.min };
+          }
+          if (priceRange.max !== undefined) {
+            filters.price = { ...filters.price, $lte: priceRange.max };
+          }
+        }
+
+        const totalCount = await strapi.entityService.count(
+          "api::product.product",
+          {
+            filters,
+          }
+        );
+
+        const products = await strapi.entityService.findMany(
+          "api::product.product",
+          {
+            filters,
+            sort: query.sort || [{ createdAt: "desc" }],
+            populate,
+            start: (page - 1) * pageSize,
+            limit: pageSize,
+          }
+        );
+
+        const pageCount = Math.ceil(totalCount / pageSize);
+
+        return ctx.send({
+          data: products,
+          meta: {
+            pagination: {
+              page,
+              pageSize,
+              pageCount,
+              total: totalCount,
+            },
+            searchTerm: searchTerm.trim(),
+          },
+        });
+      } catch (error) {
+        console.error("Error searching products:", error);
+        return ctx.internalServerError("Failed to search products");
+      }
+    },
+
+    async searchPublic(ctx) {
+      try {
+        const { query } = ctx;
+        const searchTerm = query.search as string;
+
+        if (!searchTerm || searchTerm.trim().length === 0) {
+          return ctx.badRequest("Search term is required");
+        }
+
+        const populate = {
+          category: true,
+          tags: true,
+          seller: {
+            populate: {
+              metadata: true,
+            },
+          },
+          images: true,
+        };
+
+        const page = Number((query.pagination as any)?.page) || 1;
+        const pageSize = Number((query.pagination as any)?.pageSize) || 10;
+
+        // Создаем фильтры для поиска только по продуктам
+        const filters: any = {
+          $or: [
+            // Поиск по названию продукта
+            {
+              title: {
+                $containsi: searchTerm.trim(),
+              },
+            },
+            // Поиск по описанию продукта
+            {
+              description: {
+                $containsi: searchTerm.trim(),
+              },
+            },
+          ],
+        };
+
+        // Добавляем дополнительные фильтры если они есть
+        if ((query.filters as any)?.categorySlug) {
+          const categorySlug = (query.filters as any).categorySlug;
+          const category = await strapi.entityService.findMany(
+            "api::category.category",
+            {
+              filters: { slug: categorySlug },
+            }
+          );
+
+          if (category && category.length > 0) {
+            const mainCategoryId = category[0].id;
+            const childCategoryIds = await getAllChildCategoryIds(
+              strapi,
+              mainCategoryId
+            );
+            const allCategoryIds = [mainCategoryId, ...childCategoryIds];
+            filters.category = { $in: allCategoryIds };
+          }
+        }
+
+        if ((query.filters as any)?.priceRange) {
+          const priceRange = (query.filters as any).priceRange;
+          if (priceRange.min !== undefined) {
+            filters.price = { ...filters.price, $gte: priceRange.min };
+          }
+          if (priceRange.max !== undefined) {
+            filters.price = { ...filters.price, $lte: priceRange.max };
+          }
+        }
+
+        const totalCount = await strapi.entityService.count(
+          "api::product.product",
+          {
+            filters,
+          }
+        );
+
+        const products = await strapi.entityService.findMany(
+          "api::product.product",
+          {
+            filters,
+            sort: query.sort || [{ createdAt: "desc" }],
+            populate,
+            start: (page - 1) * pageSize,
+            limit: pageSize,
+          }
+        );
+
+        const pageCount = Math.ceil(totalCount / pageSize);
+
+        return ctx.send({
+          data: products,
+          meta: {
+            pagination: {
+              page,
+              pageSize,
+              pageCount,
+              total: totalCount,
+            },
+            searchTerm: searchTerm.trim(),
+          },
+        });
+      } catch (error) {
+        console.error("Error searching public products:", error);
+        return ctx.internalServerError("Failed to search products");
       }
     },
   })
