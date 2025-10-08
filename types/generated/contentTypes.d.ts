@@ -680,6 +680,7 @@ export interface ApiSellerMetaSellerMeta extends Struct.CollectionTypeSchema {
   };
   attributes: {
     address: Schema.Attribute.Text;
+    avatar: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
     companyName: Schema.Attribute.String;
     country: Schema.Attribute.String;
     createdAt: Schema.Attribute.DateTime;
