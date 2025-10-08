@@ -80,5 +80,15 @@ export default {
         },
       },
     },
+    {
+      method: "POST",
+      path: "/seller-metas/:id/avatar",
+      handler: "seller-meta.uploadAvatar",
+      config: {
+        auth: {
+          scope: ["update"],
+        },
+      },
+    },
   ],
 };

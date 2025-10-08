@@ -299,5 +299,83 @@ export default factories.createCoreController(
         return ctx.badRequest(error.message);
       }
     },
+
+    async uploadAvatar(ctx) {
+      try {
+        const user = ctx.state.user;
+        if (!user) {
+          return ctx.unauthorized("User not authenticated");
+        }
+
+        if (user.role?.name !== "seller") {
+          return ctx.forbidden("Only sellers can upload avatar");
+        }
+
+        const { id } = ctx.params;
+
+        // Проверяем, что seller-meta принадлежит текущему пользователю
+        const sellerMeta = (await strapi.entityService.findOne(
+          "api::seller-meta.seller-meta",
+          id,
+          {
+            populate: {
+              sellerEntity: true,
+            },
+          }
+        )) as any;
+
+        if (!sellerMeta || sellerMeta.sellerEntity?.id !== user.id) {
+          return ctx.forbidden("Access denied to this seller metadata");
+        }
+
+        // Проверяем наличие файла
+        if (!ctx.request.files || !ctx.request.files["files.avatar"]) {
+          return ctx.badRequest("No avatar file provided");
+        }
+
+        const file = ctx.request.files["files.avatar"];
+        const fileArray = Array.isArray(file) ? file : [file];
+
+        if (fileArray.length === 0) {
+          return ctx.badRequest("No avatar file provided");
+        }
+
+        // Загружаем файл
+        const uploadedFile = await strapi.plugins.upload.services.upload.upload(
+          {
+            data: {
+              refId: sellerMeta.id,
+              ref: "api::seller-meta.seller-meta",
+              field: "avatar",
+            },
+            files: fileArray[0],
+          }
+        );
+
+        console.log("Uploaded avatar file:", uploadedFile);
+
+        // Обновляем seller-meta с новым avatar
+        const updateResult = await strapi.entityService.update(
+          "api::seller-meta.seller-meta",
+          sellerMeta.id,
+          {
+            data: {
+              avatar: uploadedFile[0].id,
+            },
+            populate: "*",
+          }
+        );
+
+        console.log("Seller-meta updated with avatar:", updateResult);
+
+        return ctx.send({
+          success: true,
+          data: updateResult,
+        });
+      } catch (error) {
+        console.error("Error uploading avatar:", error);
+        return ctx.badRequest(error.message);
+      }
+    },
   })
 );
