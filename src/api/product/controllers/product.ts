@@ -381,6 +381,19 @@ export default factories.createCoreController(
           return ctx.created(product);
         }
 
+        // Index product in Elasticsearch
+        try {
+          await strapi
+            .service("api::product.elasticsearch")
+            .indexProduct(product.id);
+        } catch (elasticError) {
+          console.error(
+            "Error indexing product in Elasticsearch:",
+            elasticError
+          );
+          // Don't fail the request if Elasticsearch indexing fails
+        }
+
         return ctx.created(finalProduct);
       } catch (error) {
         console.error("Error creating product:", error);
@@ -671,6 +684,19 @@ export default factories.createCoreController(
           updateOptions
         );
 
+        // Update product in Elasticsearch
+        try {
+          await strapi
+            .service("api::product.elasticsearch")
+            .indexProduct(productId);
+        } catch (elasticError) {
+          console.error(
+            "Error updating product in Elasticsearch:",
+            elasticError
+          );
+          // Don't fail the request if Elasticsearch indexing fails
+        }
+
         return ctx.send(product);
       } catch (error) {
         console.error("Error updating product:", error);
@@ -703,6 +729,19 @@ export default factories.createCoreController(
         }
 
         await strapi.entityService.delete("api::product.product", id);
+
+        // Remove product from Elasticsearch
+        try {
+          await strapi
+            .service("api::product.elasticsearch")
+            .removeProduct(Number(id));
+        } catch (elasticError) {
+          console.error(
+            "Error removing product from Elasticsearch:",
+            elasticError
+          );
+          // Don't fail the request if Elasticsearch removal fails
+        }
 
         return ctx.send({ message: "Product deleted successfully" });
       } catch (error) {
@@ -928,6 +967,154 @@ export default factories.createCoreController(
       } catch (error) {
         console.error("Error searching public products:", error);
         return ctx.internalServerError("Failed to search products");
+      }
+    },
+
+    // Elasticsearch-powered search
+    async searchElastic(ctx) {
+      try {
+        const { query } = ctx;
+        const {
+          search = "",
+          categorySlug,
+          priceRange,
+          tags,
+          status = "available",
+          sort = "createdAt:desc",
+          page = 1,
+          pageSize = 10,
+        } = query;
+
+        const searchQuery = {
+          searchTerm: search,
+          categorySlug,
+          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
+          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
+          status,
+          sort,
+          page: Number(page),
+          pageSize: Number(pageSize),
+        };
+
+        const result = await strapi
+          .service("api::product.elasticsearch")
+          .searchProducts(searchQuery);
+
+        return ctx.send({
+          data: result.hits,
+          meta: {
+            pagination: {
+              page: result.page,
+              pageSize: result.pageSize,
+              pageCount: result.pageCount,
+              total: result.total,
+            },
+            searchTerm: search,
+          },
+        });
+      } catch (error) {
+        console.error("Error in Elasticsearch search:", error);
+        return ctx.internalServerError("Failed to search products");
+      }
+    },
+
+    // Get product aggregations for filters
+    async getAggregations(ctx) {
+      try {
+        const { query } = ctx;
+        const { categorySlug, priceRange, tags, status = "available" } = query;
+
+        const searchQuery = {
+          categorySlug,
+          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
+          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
+          status,
+        };
+
+        const aggregations = await strapi
+          .service("api::product.elasticsearch")
+          .getProductAggregations(searchQuery);
+
+        return ctx.send({
+          data: aggregations,
+        });
+      } catch (error) {
+        console.error("Error getting product aggregations:", error);
+        return ctx.internalServerError("Failed to get product aggregations");
+      }
+    },
+
+    // Public Elasticsearch search
+    async searchElasticPublic(ctx) {
+      try {
+        const { query } = ctx;
+        const {
+          search = "",
+          categorySlug,
+          priceRange,
+          tags,
+          status = "available",
+          sort = "createdAt:desc",
+          page = 1,
+          pageSize = 10,
+        } = query;
+
+        const searchQuery = {
+          searchTerm: search,
+          categorySlug,
+          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
+          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
+          status,
+          sort,
+          page: Number(page),
+          pageSize: Number(pageSize),
+        };
+
+        const result = await strapi
+          .service("api::product.elasticsearch")
+          .searchProducts(searchQuery);
+
+        return ctx.send({
+          data: result.hits,
+          meta: {
+            pagination: {
+              page: result.page,
+              pageSize: result.pageSize,
+              pageCount: result.pageCount,
+              total: result.total,
+            },
+            searchTerm: search,
+          },
+        });
+      } catch (error) {
+        console.error("Error in public Elasticsearch search:", error);
+        return ctx.internalServerError("Failed to search products");
+      }
+    },
+
+    // Public aggregations
+    async getAggregationsPublic(ctx) {
+      try {
+        const { query } = ctx;
+        const { categorySlug, priceRange, tags, status = "available" } = query;
+
+        const searchQuery = {
+          categorySlug,
+          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
+          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
+          status,
+        };
+
+        const aggregations = await strapi
+          .service("api::product.elasticsearch")
+          .getProductAggregations(searchQuery);
+
+        return ctx.send({
+          data: aggregations,
+        });
+      } catch (error) {
+        console.error("Error getting public product aggregations:", error);
+        return ctx.internalServerError("Failed to get product aggregations");
       }
     },
   })
