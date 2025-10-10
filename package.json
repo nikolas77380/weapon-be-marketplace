@@ -15,6 +15,7 @@
     "upgrade:dry": "npx @strapi/upgrade latest --dry",
     "sync-elasticsearch": "node scripts/sync-elasticsearch.js",
     "sync-elasticsearch-simple": "node scripts/sync-elasticsearch-simple.js",
+    "sync-elasticsearch-bulk": "node scripts/sync-elasticsearch-bulk.js",
     "init-elasticsearch": "node scripts/init-elasticsearch.js",
     "test-elasticsearch": "node scripts/test-elasticsearch-connection.js"
   },
