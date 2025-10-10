@@ -188,10 +188,7 @@ async function syncProductsBulk() {
         images: true,
       },
       limit: -1, // Get all products
-      filters: {
-        // Only get published products or products with status 'available'
-        $or: [{ publishedAt: { $notNull: true } }, { status: "available" }],
-      },
+      // No filters - sync ALL products regardless of status
     });
 
     console.log(`📊 Found ${products.length} products to sync`);
