@@ -55,9 +55,7 @@ export default {
       path: "/seller-metas",
       handler: "seller-meta.create",
       config: {
-        auth: {
-          scope: ["create"],
-        },
+        auth: {},
       },
     },
     {
@@ -65,9 +63,7 @@ export default {
       path: "/seller-metas/:id",
       handler: "seller-meta.update",
       config: {
-        auth: {
-          scope: ["update"],
-        },
+        auth: {},
       },
     },
     {
@@ -75,9 +71,7 @@ export default {
       path: "/seller-metas/:id",
       handler: "seller-meta.delete",
       config: {
-        auth: {
-          scope: ["delete"],
-        },
+        auth: {},
       },
     },
     {
@@ -85,9 +79,7 @@ export default {
       path: "/seller-metas/:id/avatar",
       handler: "seller-meta.uploadAvatar",
       config: {
-        auth: {
-          scope: ["update"],
-        },
+        auth: {},
       },
     },
   ],
