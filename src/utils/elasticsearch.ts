@@ -326,14 +326,10 @@ export async function searchProducts(query: any, strapi?: any) {
       categories,
     } = query;
 
-    // Build search query
+    // Build search query - no status filter to show all products
     const searchQuery: any = {
       bool: {
-        must: [
-          {
-            terms: { status: ["published", "available"] },
-          },
-        ],
+        must: [],
       },
     };
 
@@ -473,14 +469,10 @@ export async function getProductAggregations(query: any, strapi?: any) {
       categories,
     } = query;
 
-    // Build base query (same as search)
+    // Build base query - no status filter to show all products
     const searchQuery: any = {
       bool: {
-        must: [
-          {
-            terms: { status: ["published", "available"] },
-          },
-        ],
+        must: [],
       },
     };
 
@@ -653,13 +645,10 @@ export async function searchProductsBySeller(query: any) {
       categories,
     } = query;
 
-    // Build search query
+    // Build search query - no status filter to show all products
     const searchQuery: any = {
       bool: {
         must: [
-          {
-            terms: { status: ["published", "available"] },
-          },
           {
             term: { "seller.id": sellerId },
           },
@@ -781,9 +770,6 @@ export async function getSellerProductAggregations(query: any) {
     const searchQuery: any = {
       bool: {
         must: [
-          {
-            terms: { status: ["published", "available"] },
-          },
           {
             term: { "seller.id": sellerId },
           },
