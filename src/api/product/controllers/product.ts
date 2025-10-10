@@ -1168,5 +1168,126 @@ export default factories.createCoreController(
         return ctx.internalServerError("Failed to get product aggregations");
       }
     },
+
+    // Search seller products with Elasticsearch
+    async searchSellerProductsElastic(ctx) {
+      try {
+        const { query } = ctx;
+        const {
+          sellerId,
+          search = "",
+          priceRange,
+          tags,
+          status = "published",
+          sort = "createdAt:desc",
+          page = 1,
+          pageSize = 10,
+          availability,
+          condition,
+          categories,
+        } = query;
+
+        const searchQuery = {
+          searchTerm: search,
+          sellerId: Number(sellerId),
+          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
+          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
+          status,
+          sort,
+          page: Number(page),
+          pageSize: Number(pageSize),
+          availability: availability
+            ? Array.isArray(availability)
+              ? availability
+              : [availability]
+            : undefined,
+          condition: condition
+            ? Array.isArray(condition)
+              ? condition
+              : [condition]
+            : undefined,
+          categories: categories
+            ? Array.isArray(categories)
+              ? categories
+              : [categories]
+            : undefined,
+        };
+
+        const result = await strapi
+          .service("api::product.elasticsearch")
+          .searchProductsBySeller(searchQuery);
+
+        return ctx.send({
+          data: result.hits,
+          meta: {
+            pagination: {
+              page: result.page,
+              pageSize: result.pageSize,
+              pageCount: result.pageCount,
+              total: result.total,
+            },
+            searchTerm: search,
+            sellerId: Number(sellerId),
+          },
+        });
+      } catch (error) {
+        console.error(
+          "Error searching seller products with Elasticsearch:",
+          error
+        );
+        return ctx.internalServerError("Failed to search seller products");
+      }
+    },
+
+    // Get seller product aggregations
+    async getSellerProductAggregations(ctx) {
+      try {
+        const { query } = ctx;
+        const {
+          sellerId,
+          priceRange,
+          tags,
+          status = "published",
+          availability,
+          condition,
+          categories,
+        } = query;
+
+        const searchQuery = {
+          sellerId: Number(sellerId),
+          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
+          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
+          status,
+          availability: availability
+            ? Array.isArray(availability)
+              ? availability
+              : [availability]
+            : undefined,
+          condition: condition
+            ? Array.isArray(condition)
+              ? condition
+              : [condition]
+            : undefined,
+          categories: categories
+            ? Array.isArray(categories)
+              ? categories
+              : [categories]
+            : undefined,
+        };
+
+        const aggregations = await strapi
+          .service("api::product.elasticsearch")
+          .getSellerProductAggregations(searchQuery);
+
+        return ctx.send({
+          data: aggregations,
+        });
+      } catch (error) {
+        console.error("Error getting seller product aggregations:", error);
+        return ctx.internalServerError(
+          "Failed to get seller product aggregations"
+        );
+      }
+    },
   })
 );

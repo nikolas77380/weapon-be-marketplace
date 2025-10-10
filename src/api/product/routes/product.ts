@@ -107,5 +107,21 @@ export default {
         auth: false,
       },
     },
+    {
+      method: "GET",
+      path: "/products/seller/:sellerId/search/elastic",
+      handler: "product.searchSellerProductsElastic",
+      config: {
+        auth: false,
+      },
+    },
+    {
+      method: "GET",
+      path: "/products/seller/:sellerId/aggregations",
+      handler: "product.getSellerProductAggregations",
+      config: {
+        auth: false,
+      },
+    },
   ],
 };

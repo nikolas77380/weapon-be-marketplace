@@ -672,4 +672,266 @@ export async function getProductAggregations(query: any) {
   }
 }
 
+// Search products by seller in Elasticsearch
+export async function searchProductsBySeller(query: any) {
+  try {
+    const {
+      searchTerm = "",
+      sellerId,
+      priceRange,
+      tags,
+      status = "available",
+      sort = "createdAt:desc",
+      page = 1,
+      pageSize = 10,
+      availability,
+      condition,
+      categories,
+    } = query;
+
+    // Build search query
+    const searchQuery: any = {
+      bool: {
+        must: [
+          {
+            terms: { status: ["published", "available"] },
+          },
+          {
+            term: { "seller.id": sellerId },
+          },
+        ],
+      },
+    };
+
+    // Add text search
+    if (searchTerm && searchTerm.trim()) {
+      searchQuery.bool.must.push({
+        multi_match: {
+          query: searchTerm.trim(),
+          fields: ["title^2", "description", "category.name", "tags.name"],
+          type: "best_fields",
+          fuzziness: "AUTO",
+        },
+      });
+    }
+
+    // Add price range filter
+    if (priceRange) {
+      const priceFilter: any = { range: { price: {} } };
+      if (priceRange.min !== undefined) {
+        priceFilter.range.price.gte = priceRange.min;
+      }
+      if (priceRange.max !== undefined) {
+        priceFilter.range.price.lte = priceRange.max;
+      }
+      searchQuery.bool.must.push(priceFilter);
+    }
+
+    // Add tags filter
+    if (tags && tags.length > 0) {
+      searchQuery.bool.must.push({
+        nested: {
+          path: "tags",
+          query: {
+            terms: { "tags.slug": tags },
+          },
+        },
+      });
+    }
+
+    // Add availability filter
+    if (availability && availability.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { availability: availability },
+      });
+    }
+
+    // Add condition filter
+    if (condition && condition.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { condition: condition },
+      });
+    }
+
+    // Add categories filter
+    if (categories && categories.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { "category.slug": categories },
+      });
+    }
+
+    // Build sort
+    const sortArray = [];
+    if (sort) {
+      const [field, order] = sort.split(":");
+      sortArray.push({ [field]: order });
+    }
+
+    // Execute search
+    const response = await client.search({
+      index: PRODUCTS_INDEX,
+      query: searchQuery,
+      sort: sortArray,
+      from: (page - 1) * pageSize,
+      size: pageSize,
+      _source: true,
+    });
+
+    return {
+      hits: response.hits.hits.map((hit: any) => hit._source),
+      total:
+        typeof response.hits.total === "number"
+          ? response.hits.total
+          : response.hits.total.value,
+      page,
+      pageSize,
+      pageCount: Math.ceil(
+        (typeof response.hits.total === "number"
+          ? response.hits.total
+          : response.hits.total.value) / pageSize
+      ),
+    };
+  } catch (error) {
+    console.error(
+      "Error searching products by seller in Elasticsearch:",
+      error
+    );
+    throw error;
+  }
+}
+
+// Get aggregations for seller products
+export async function getSellerProductAggregations(query: any) {
+  try {
+    const {
+      sellerId,
+      priceRange,
+      tags,
+      status = "published",
+      availability,
+      condition,
+      categories,
+    } = query;
+
+    // Build base query (same as search)
+    const searchQuery: any = {
+      bool: {
+        must: [
+          {
+            terms: { status: ["published", "available"] },
+          },
+          {
+            term: { "seller.id": sellerId },
+          },
+        ],
+      },
+    };
+
+    // Add availability filter
+    if (availability && availability.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { availability: availability },
+      });
+    }
+
+    // Add condition filter
+    if (condition && condition.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { condition: condition },
+      });
+    }
+
+    // Add categories filter
+    if (categories && categories.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { "category.slug": categories },
+      });
+    }
+
+    // Add tags filter
+    if (tags && tags.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { tags: tags },
+      });
+    }
+
+    const response = await client.search({
+      index: PRODUCTS_INDEX,
+      query: searchQuery,
+      size: 0,
+      aggs: {
+        categories: {
+          terms: {
+            field: "category.slug",
+            size: 100,
+          },
+        },
+        tags: {
+          nested: {
+            path: "tags",
+          },
+          aggs: {
+            tag_terms: {
+              terms: {
+                field: "tags.slug",
+                size: 100,
+              },
+            },
+          },
+        },
+        price_stats: {
+          stats: {
+            field: "price",
+          },
+        },
+        price_histogram: {
+          histogram: {
+            field: "price",
+            interval: 100,
+          },
+        },
+        availability: {
+          terms: {
+            field: "availability",
+            size: 20,
+          },
+        },
+        condition: {
+          terms: {
+            field: "condition",
+            size: 20,
+          },
+        },
+        subcategories: {
+          nested: {
+            path: "subcategories",
+          },
+          aggs: {
+            subcategory_terms: {
+              terms: {
+                field: "subcategories.slug",
+                size: 100,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      categories: (response.aggregations.categories as any).buckets,
+      tags: (response.aggregations.tags as any).tag_terms.buckets,
+      priceStats: response.aggregations.price_stats,
+      priceHistogram: (response.aggregations.price_histogram as any).buckets,
+      availability: (response.aggregations.availability as any).buckets,
+      condition: (response.aggregations.condition as any).buckets,
+      subcategories: (response.aggregations.subcategories as any)
+        .subcategory_terms.buckets,
+    };
+  } catch (error) {
+    console.error("Error getting seller product aggregations:", error);
+    throw error;
+  }
+}
+
 export default client;
