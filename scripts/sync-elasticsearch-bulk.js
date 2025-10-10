@@ -377,16 +377,38 @@ async function syncProductsBulk() {
       index: PRODUCTS_INDEX,
     });
 
-    // Update replica settings for production
-    console.log("⚙️ Updating index settings for production...");
-    await client.indices.putSettings({
-      index: PRODUCTS_INDEX,
-      body: {
-        index: {
-          number_of_replicas: 1,
-        },
-      },
-    });
+    // Update replica settings for production (skip for serverless)
+    const isServerless =
+      process.env.ELASTICSEARCH_URL?.includes("found.io") ||
+      process.env.ELASTICSEARCH_URL?.includes("elastic-cloud.com");
+
+    if (!isServerless) {
+      console.log("⚙️ Updating index settings for production...");
+      try {
+        await client.indices.putSettings({
+          index: PRODUCTS_INDEX,
+          body: {
+            index: {
+              number_of_replicas: 1,
+            },
+          },
+        });
+        console.log("✅ Index settings updated successfully");
+      } catch (error) {
+        if (
+          error.message?.includes("serverless mode") ||
+          error.message?.includes("not available when running in serverless")
+        ) {
+          console.log(
+            "🌐 Detected serverless mode - skipping replica settings"
+          );
+        } else {
+          console.warn("⚠️ Could not update index settings:", error.message);
+        }
+      }
+    } else {
+      console.log("🌐 Running in serverless mode - skipping replica settings");
+    }
 
     console.log(
       `✅ Successfully synced ${products.length} products to Elasticsearch Cloud!`
