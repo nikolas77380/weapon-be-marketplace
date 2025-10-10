@@ -324,8 +324,11 @@ async function syncProductsBulk() {
             subcategories: (() => {
               const subcategories = [];
 
-              // Add children of current category
-              if (product.category?.children) {
+              // If current category has children, add them
+              if (
+                product.category?.children &&
+                product.category.children.length > 0
+              ) {
                 subcategories.push(
                   ...product.category.children.map((child) => ({
                     id: child.id,
@@ -336,7 +339,7 @@ async function syncProductsBulk() {
                 );
               }
 
-              // Add children of parent category (siblings of current category)
+              // If current category has a parent, add all siblings (children of parent)
               if (product.category?.parent?.children) {
                 subcategories.push(
                   ...product.category.parent.children.map((child) => ({
@@ -348,7 +351,13 @@ async function syncProductsBulk() {
                 );
               }
 
-              return subcategories;
+              // Remove duplicates based on id
+              const uniqueSubcategories = subcategories.filter(
+                (sub, index, self) =>
+                  index === self.findIndex((s) => s.id === sub.id)
+              );
+
+              return uniqueSubcategories;
             })(),
             attributesJson: product.attributesJson || {},
             availability:
