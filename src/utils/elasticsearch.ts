@@ -1,4 +1,8 @@
 import { Client } from "@elastic/elasticsearch";
+import {
+  getAllCategoryIdsForSearch,
+  buildCategorySearchQuery,
+} from "./category-search";
 
 // Elasticsearch client configuration
 // For production: use API key authentication
@@ -306,7 +310,7 @@ export async function removeProduct(productId: number) {
 }
 
 // Search products in Elasticsearch
-export async function searchProducts(query: any) {
+export async function searchProducts(query: any, strapi?: any) {
   try {
     const {
       searchTerm = "",
@@ -345,58 +349,32 @@ export async function searchProducts(query: any) {
       });
     }
 
-    // Add category filter - search by category slug or parent category
-    if (categorySlug) {
-      // For "weapons" category, we need to find all products that belong to weapons or its subcategories
-      if (categorySlug === "weapons") {
-        searchQuery.bool.must.push({
-          bool: {
-            should: [
-              { term: { "category.slug": categorySlug } },
-              { term: { "category.parent.slug": categorySlug } },
-              { term: { "category.parent.name": categorySlug } },
-              // Include products from "small-arms" category (which is a subcategory of "weapons")
-              { term: { "category.slug": "small-arms" } },
-              { term: { "category.parent.slug": "small-arms" } },
-              { term: { "category.parent.name": "Small Arms" } },
-              // Include products from "submachine-guns" category (which is a subcategory of "small-arms")
-              { term: { "category.slug": "submachine-guns" } },
-              { term: { "category.parent.slug": "submachine-guns" } },
-              { term: { "category.parent.name": "Submachine Guns (SMG)" } },
-              // Include products from "anti-tank-anti-material" category (which is a subcategory of "weapons")
-              { term: { "category.slug": "anti-tank-anti-material" } },
-              { term: { "category.parent.slug": "anti-tank-anti-material" } },
-              {
-                term: {
-                  "category.parent.name":
-                    "Anti-tank/Anti-material Small Unit Weapons",
-                },
-              },
-            ],
-            minimum_should_match: 1,
-          },
-        });
-      } else {
-        // For other categories, use the standard search
-        searchQuery.bool.must.push({
-          bool: {
-            should: [
-              { term: { "category.slug": categorySlug } },
-              { term: { "category.parent.slug": categorySlug } },
-              { term: { "category.parent.name": categorySlug } },
-              // Search in category hierarchy if it exists
-              {
-                nested: {
-                  path: "categoryHierarchy",
-                  query: {
-                    term: { "categoryHierarchy.slug": categorySlug },
-                  },
-                },
-              },
-            ],
-            minimum_should_match: 1,
-          },
-        });
+    // Add category filter using simplified approach
+    if (categorySlug && strapi) {
+      try {
+        // Get all category IDs that should be included in search
+        const categoryIds = await getAllCategoryIdsForSearch(
+          strapi,
+          categorySlug
+        );
+
+        if (categoryIds.length > 0) {
+          // Use the simplified category search query
+          const categoryQuery = buildCategorySearchQuery(categoryIds);
+          searchQuery.bool.must.push(categoryQuery);
+        } else {
+          // If no categories found, return empty results
+          return {
+            hits: [],
+            total: 0,
+            page,
+            pageSize,
+            pageCount: 0,
+          };
+        }
+      } catch (error) {
+        console.error("Error getting category IDs for search:", error);
+        // Continue without category filter if there's an error
       }
     }
 

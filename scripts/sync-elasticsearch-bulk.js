@@ -123,32 +123,13 @@ const productMapping = {
     // Availability and condition
     availability: { type: "keyword" },
     condition: { type: "keyword" },
-    // Category hierarchy for better filtering
-    categoryHierarchy: {
-      type: "nested",
-      properties: {
-        id: { type: "integer" },
-        name: { type: "text" },
-        slug: { type: "keyword" },
-        description: { type: "text" },
-      },
-    },
-    // Category children (subcategories)
-    subcategories: {
-      type: "nested",
-      properties: {
-        id: { type: "integer" },
-        name: {
-          type: "text",
-          analyzer: "standard",
-          fields: {
-            keyword: { type: "keyword" },
-          },
-        },
-        slug: { type: "keyword" },
-        description: { type: "text" },
-      },
-    },
+    // Simple category information
+    categoryId: { type: "integer" },
+    categoryName: { type: "keyword" },
+    categorySlug: { type: "keyword" },
+    parentCategoryId: { type: "integer" },
+    parentCategoryName: { type: "keyword" },
+    parentCategorySlug: { type: "keyword" },
   },
 };
 
@@ -195,12 +176,7 @@ async function syncProductsBulk() {
       populate: {
         category: {
           populate: {
-            parent: {
-              populate: {
-                children: true,
-              },
-            },
-            children: true,
+            parent: true,
           },
         },
         tags: true,
@@ -266,25 +242,6 @@ async function syncProductsBulk() {
             `\n🔄 Processing product: ${product.title} (ID: ${product.id})`
           );
 
-          // Build category hierarchy
-          const categoryHierarchy = [];
-          if (product.category) {
-            categoryHierarchy.push({
-              id: product.category.id,
-              name: product.category.name,
-              slug: product.category.slug,
-              description: product.category.description,
-            });
-
-            if (product.category.parent) {
-              categoryHierarchy.push({
-                id: product.category.parent.id,
-                name: product.category.parent.name,
-                slug: product.category.parent.slug,
-              });
-            }
-          }
-
           const document = {
             id: product.id,
             title: product.title,
@@ -298,22 +255,13 @@ async function syncProductsBulk() {
             createdAt: product.createdAt,
             updatedAt: product.updatedAt,
             publishedAt: product.publishedAt,
-            category: product.category
-              ? {
-                  id: product.category.id,
-                  name: product.category.name,
-                  slug: product.category.slug,
-                  description: product.category.description,
-                  parent: product.category.parent
-                    ? {
-                        id: product.category.parent.id,
-                        name: product.category.parent.name,
-                        slug: product.category.parent.slug,
-                      }
-                    : null,
-                }
-              : null,
-            categoryHierarchy: categoryHierarchy,
+            // Simple category fields for new approach
+            categoryId: product.category?.id || null,
+            categoryName: product.category?.name || null,
+            categorySlug: product.category?.slug || null,
+            parentCategoryId: product.category?.parent?.id || null,
+            parentCategoryName: product.category?.parent?.name || null,
+            parentCategorySlug: product.category?.parent?.slug || null,
             tags: product.tags
               ? product.tags.map((tag) => ({
                   id: tag.id,
@@ -343,44 +291,7 @@ async function syncProductsBulk() {
                   size: image.size,
                 }))
               : [],
-            subcategories: (() => {
-              const subcategories = [];
-
-              // If current category has children, add them
-              if (
-                product.category?.children &&
-                product.category.children.length > 0
-              ) {
-                subcategories.push(
-                  ...product.category.children.map((child) => ({
-                    id: child.id,
-                    name: child.name,
-                    slug: child.slug,
-                    description: child.description,
-                  }))
-                );
-              }
-
-              // If current category has a parent, add all siblings (children of parent)
-              if (product.category?.parent?.children) {
-                subcategories.push(
-                  ...product.category.parent.children.map((child) => ({
-                    id: child.id,
-                    name: child.name,
-                    slug: child.slug,
-                    description: child.description,
-                  }))
-                );
-              }
-
-              // Remove duplicates based on id
-              const uniqueSubcategories = subcategories.filter(
-                (sub, index, self) =>
-                  index === self.findIndex((s) => s.id === sub.id)
-              );
-
-              return uniqueSubcategories;
-            })(),
+            // No complex subcategories - will be handled in Strapi search logic
             attributesJson: product.attributesJson || {},
             availability:
               product.availability ||
@@ -390,15 +301,15 @@ async function syncProductsBulk() {
               product.condition || product.attributesJson?.condition || "new",
           };
 
-          // Log subcategories for debugging
+          // Log category info for debugging
           console.log(
-            `   Subcategories: ${document.subcategories.length} items`
+            `   Category: ${document.categoryName} (ID: ${document.categoryId})`
           );
-          if (document.subcategories.length > 0) {
-            console.log(
-              `   Subcategory names: ${document.subcategories.map((s) => s.name).join(", ")}`
-            );
-          }
+          console.log(
+            `   Parent: ${document.parentCategoryName} (ID: ${document.parentCategoryId})`
+          );
+          console.log(`   Category Slug: ${document.categorySlug}`);
+          console.log(`   Parent Slug: ${document.parentCategorySlug}`);
 
           // Add to bulk body
           bulkBody.push({
