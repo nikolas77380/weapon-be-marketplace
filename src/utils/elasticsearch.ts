@@ -461,7 +461,7 @@ export async function searchProducts(query: any, strapi?: any) {
 }
 
 // Get aggregations for filters
-export async function getProductAggregations(query: any) {
+export async function getProductAggregations(query: any, strapi?: any) {
   try {
     const {
       categorySlug,
@@ -484,48 +484,34 @@ export async function getProductAggregations(query: any) {
       },
     };
 
+    // Add category filter using simplified approach
     if (categorySlug) {
-      // For "weapons" category, we need to find all products that belong to weapons or its subcategories
-      if (categorySlug === "weapons") {
-        searchQuery.bool.must.push({
-          bool: {
-            should: [
-              { term: { "category.slug": categorySlug } },
-              { term: { "category.parent.slug": categorySlug } },
-              { term: { "category.parent.name": categorySlug } },
-              // Include products from "small-arms" category (which is a subcategory of "weapons")
-              { term: { "category.slug": "small-arms" } },
-              { term: { "category.parent.slug": "small-arms" } },
-              { term: { "category.parent.name": "Small Arms" } },
-              // Include products from "submachine-guns" category (which is a subcategory of "small-arms")
-              { term: { "category.slug": "submachine-guns" } },
-              { term: { "category.parent.slug": "submachine-guns" } },
-              { term: { "category.parent.name": "Submachine Guns (SMG)" } },
-              // Include products from "anti-tank-anti-material" category (which is a subcategory of "weapons")
-              { term: { "category.slug": "anti-tank-anti-material" } },
-              { term: { "category.parent.slug": "anti-tank-anti-material" } },
-              {
-                term: {
-                  "category.parent.name":
-                    "Anti-tank/Anti-material Small Unit Weapons",
-                },
-              },
-            ],
-            minimum_should_match: 1,
-          },
-        });
-      } else {
-        // For other categories, use the standard search
-        searchQuery.bool.must.push({
-          bool: {
-            should: [
-              { term: { "category.slug": categorySlug } },
-              { term: { "category.parent.slug": categorySlug } },
-              { term: { "category.parent.name": categorySlug } },
-            ],
-            minimum_should_match: 1,
-          },
-        });
+      try {
+        // Get all category IDs that should be included in search
+        const categoryIds = await getAllCategoryIdsForSearch(
+          strapi,
+          categorySlug
+        );
+
+        if (categoryIds.length > 0) {
+          // Use the simplified category search query
+          const categoryQuery = buildCategorySearchQuery(categoryIds);
+          searchQuery.bool.must.push(categoryQuery);
+        } else {
+          // If no categories found, return empty aggregations
+          return {
+            categories: [],
+            tags: [],
+            priceStats: { count: 0, min: null, max: null, avg: null, sum: 0 },
+            priceHistogram: [],
+            availability: [],
+            condition: [],
+            subcategories: [],
+          };
+        }
+      } catch (error) {
+        console.error("Error getting category IDs for aggregations:", error);
+        // Continue without category filter if there's an error
       }
     }
 
@@ -578,7 +564,7 @@ export async function getProductAggregations(query: any) {
       aggs: {
         categories: {
           terms: {
-            field: "category.slug",
+            field: "categorySlug",
             size: 100,
           },
         },
@@ -840,7 +826,7 @@ export async function getSellerProductAggregations(query: any) {
       aggs: {
         categories: {
           terms: {
-            field: "category.slug",
+            field: "categorySlug",
             size: 100,
           },
         },

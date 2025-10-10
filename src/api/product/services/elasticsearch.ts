@@ -78,7 +78,7 @@ export default factories.createCoreService(
     // Get product aggregations for filters
     async getProductAggregations(query: any) {
       try {
-        return await getProductAggregations(query);
+        return await getProductAggregations(query, strapi);
       } catch (error) {
         console.error("Error getting product aggregations:", error);
         throw error;
