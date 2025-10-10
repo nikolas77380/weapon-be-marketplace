@@ -172,11 +172,6 @@ async function initializeIndex() {
     await client.indices.create({
       index: PRODUCTS_INDEX,
       mappings: productMapping,
-      settings: {
-        number_of_shards: 1,
-        number_of_replicas: 0, // Start with 0 replicas for faster indexing
-        refresh_interval: "30s", // Reduce refresh frequency during bulk indexing
-      },
     });
 
     console.log(`✅ Created Elasticsearch index: ${PRODUCTS_INDEX}`);
@@ -386,12 +381,6 @@ async function syncProductsBulk() {
     console.log("⚙️ Updating index settings for production...");
     await client.indices.putSettings({
       index: PRODUCTS_INDEX,
-      body: {
-        settings: {
-          number_of_replicas: 1, // Add replicas for production
-          refresh_interval: "1s", // Normal refresh interval
-        },
-      },
     });
 
     console.log(
