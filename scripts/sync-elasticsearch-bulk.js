@@ -212,6 +212,10 @@ async function syncProductsBulk() {
         images: true,
       },
       limit: -1, // Get all products
+      filters: {
+        // Only get published products or products with status 'available'
+        $or: [{ publishedAt: { $notNull: true } }, { status: "available" }],
+      },
     });
 
     console.log(`📊 Found ${products.length} products to sync`);
@@ -221,6 +225,20 @@ async function syncProductsBulk() {
       await app.destroy();
       return;
     }
+
+    // Log detailed product information for debugging
+    console.log("\n🔍 Product details:");
+    products.forEach((product, index) => {
+      console.log(`${index + 1}. ${product.title} (ID: ${product.id})`);
+      console.log(
+        `   Category: ${product.category?.name || "No category"} (ID: ${product.category?.id || "No ID"})`
+      );
+      console.log(
+        `   Parent: ${product.category?.parent?.name || "No parent"} (ID: ${product.category?.parent?.id || "No ID"})`
+      );
+      console.log(`   Status: ${product.status}`);
+      console.log(`   Published: ${product.publishedAt ? "Yes" : "No"}`);
+    });
 
     // Bulk indexing configuration
     const BATCH_SIZE = 1000; // Process 1000 products at a time
@@ -244,6 +262,10 @@ async function syncProductsBulk() {
 
       for (const product of batchProducts) {
         try {
+          console.log(
+            `\n🔄 Processing product: ${product.title} (ID: ${product.id})`
+          );
+
           // Build category hierarchy
           const categoryHierarchy = [];
           if (product.category) {
@@ -368,6 +390,16 @@ async function syncProductsBulk() {
               product.condition || product.attributesJson?.condition || "new",
           };
 
+          // Log subcategories for debugging
+          console.log(
+            `   Subcategories: ${document.subcategories.length} items`
+          );
+          if (document.subcategories.length > 0) {
+            console.log(
+              `   Subcategory names: ${document.subcategories.map((s) => s.name).join(", ")}`
+            );
+          }
+
           // Add to bulk body
           bulkBody.push({
             index: {
@@ -377,7 +409,15 @@ async function syncProductsBulk() {
           });
           bulkBody.push(document);
         } catch (error) {
-          console.error(`❌ Error preparing product ${product.id}:`, error);
+          console.error(
+            `❌ Error preparing product ${product.id} (${product.title}):`,
+            error.message
+          );
+          console.error(
+            `   Category: ${product.category?.name || "No category"}`
+          );
+          console.error(`   Status: ${product.status}`);
+          // Continue processing other products even if one fails
         }
       }
 
