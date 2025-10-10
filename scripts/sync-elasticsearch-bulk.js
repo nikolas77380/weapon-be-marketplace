@@ -133,7 +133,7 @@ const productMapping = {
         description: { type: "text" },
       },
     },
-    // Subcategories
+    // Category children (subcategories)
     subcategories: {
       type: "nested",
       properties: {
@@ -196,6 +196,7 @@ async function syncProductsBulk() {
         category: {
           populate: {
             parent: true,
+            children: true,
           },
         },
         tags: true,
@@ -205,7 +206,6 @@ async function syncProductsBulk() {
           },
         },
         images: true,
-        subcategories: true,
       },
       limit: -1, // Get all products
     });
@@ -317,12 +317,12 @@ async function syncProductsBulk() {
                   size: image.size,
                 }))
               : [],
-            subcategories: product.subcategories
-              ? product.subcategories.map((subcat) => ({
-                  id: subcat.id,
-                  name: subcat.name,
-                  slug: subcat.slug,
-                  description: subcat.description,
+            subcategories: product.category?.children
+              ? product.category.children.map((child) => ({
+                  id: child.id,
+                  name: child.name,
+                  slug: child.slug,
+                  description: child.description,
                 }))
               : [],
             attributesJson: product.attributesJson || {},
@@ -381,6 +381,11 @@ async function syncProductsBulk() {
     console.log("⚙️ Updating index settings for production...");
     await client.indices.putSettings({
       index: PRODUCTS_INDEX,
+      body: {
+        index: {
+          number_of_replicas: 1,
+        },
+      },
     });
 
     console.log(
