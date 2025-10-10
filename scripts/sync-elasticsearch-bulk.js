@@ -195,7 +195,11 @@ async function syncProductsBulk() {
       populate: {
         category: {
           populate: {
-            parent: true,
+            parent: {
+              populate: {
+                children: true,
+              },
+            },
             children: true,
           },
         },
@@ -317,14 +321,35 @@ async function syncProductsBulk() {
                   size: image.size,
                 }))
               : [],
-            subcategories: product.category?.children
-              ? product.category.children.map((child) => ({
-                  id: child.id,
-                  name: child.name,
-                  slug: child.slug,
-                  description: child.description,
-                }))
-              : [],
+            subcategories: (() => {
+              const subcategories = [];
+
+              // Add children of current category
+              if (product.category?.children) {
+                subcategories.push(
+                  ...product.category.children.map((child) => ({
+                    id: child.id,
+                    name: child.name,
+                    slug: child.slug,
+                    description: child.description,
+                  }))
+                );
+              }
+
+              // Add children of parent category (siblings of current category)
+              if (product.category?.parent?.children) {
+                subcategories.push(
+                  ...product.category.parent.children.map((child) => ({
+                    id: child.id,
+                    name: child.name,
+                    slug: child.slug,
+                    description: child.description,
+                  }))
+                );
+              }
+
+              return subcategories;
+            })(),
             attributesJson: product.attributesJson || {},
             availability:
               product.availability ||
