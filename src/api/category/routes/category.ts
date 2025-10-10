@@ -29,5 +29,21 @@ export default {
         auth: false,
       },
     },
+    {
+      method: "GET",
+      path: "/categories/public/slug/:slug/products",
+      handler: "category.getProductsBySlug",
+      config: {
+        auth: false,
+      },
+    },
+    {
+      method: "GET",
+      path: "/categories/public/slug/:slug/filters",
+      handler: "category.getFiltersBySlug",
+      config: {
+        auth: false,
+      },
+    },
   ],
 };

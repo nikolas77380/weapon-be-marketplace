@@ -49,7 +49,11 @@ export default factories.createCoreController(
         const { query } = ctx;
 
         const populate = {
-          category: true,
+          category: {
+            populate: {
+              parent: true,
+            },
+          },
           tags: true,
           seller: true,
           images: true,
@@ -158,7 +162,11 @@ export default factories.createCoreController(
           id,
           {
             populate: {
-              category: true,
+              category: {
+                populate: {
+                  parent: true,
+                },
+              },
               tags: true,
               seller: true,
               images: true,
@@ -291,6 +299,11 @@ export default factories.createCoreController(
           return ctx.badRequest("Valid price is required");
         }
 
+        // Set default status if not provided
+        if (!productData.status) {
+          productData.status = "available";
+        }
+
         if (!productData.slug) {
           productData.slug = await generateUniqueSlug(
             strapi,
@@ -301,7 +314,11 @@ export default factories.createCoreController(
         const createOptions: any = {
           data: productData,
           populate: {
-            category: true,
+            category: {
+              populate: {
+                parent: true,
+              },
+            },
             tags: true,
             seller: true,
             images: true,
@@ -366,7 +383,11 @@ export default factories.createCoreController(
           product.id,
           {
             populate: {
-              category: true,
+              category: {
+                populate: {
+                  parent: true,
+                },
+              },
               tags: true,
               seller: true,
               images: true,
@@ -406,7 +427,11 @@ export default factories.createCoreController(
         const { query } = ctx;
 
         const populate = {
-          category: true,
+          category: {
+            populate: {
+              parent: true,
+            },
+          },
           tags: true,
           seller: true,
           images: true,
@@ -515,7 +540,11 @@ export default factories.createCoreController(
           id,
           {
             populate: {
-              category: true,
+              category: {
+                populate: {
+                  parent: true,
+                },
+              },
               tags: true,
               seller: true,
               images: true,
@@ -657,6 +686,16 @@ export default factories.createCoreController(
         if (productSellerId !== currentUserId) {
           return ctx.forbidden("You can only update your own products");
         }
+        console.log("data", data);
+        // Validate status field if provided
+        if (data.status) {
+          const validStatuses = ["available", "reserved", "sold", "archived"];
+          if (!validStatuses.includes(data.status)) {
+            return ctx.badRequest(
+              `Invalid status. Must be one of: ${validStatuses.join(", ")}`
+            );
+          }
+        }
 
         if (data.title && data.title !== (existingProduct as any).title) {
           data.slug = await generateUniqueSlug(strapi, data.title, productId);
@@ -665,7 +704,11 @@ export default factories.createCoreController(
         const updateOptions: any = {
           data,
           populate: {
-            category: true,
+            category: {
+              populate: {
+                parent: true,
+              },
+            },
             tags: true,
             seller: true,
             images: true,
@@ -760,7 +803,11 @@ export default factories.createCoreController(
         }
 
         const populate = {
-          category: true,
+          category: {
+            populate: {
+              parent: true,
+            },
+          },
           tags: true,
           seller: {
             populate: {
@@ -870,7 +917,11 @@ export default factories.createCoreController(
         }
 
         const populate = {
-          category: true,
+          category: {
+            populate: {
+              parent: true,
+            },
+          },
           tags: true,
           seller: {
             populate: {

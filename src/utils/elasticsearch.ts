@@ -30,7 +30,7 @@ const createElasticsearchClient = () => {
 const client = createElasticsearchClient();
 
 // Product index name
-export const PRODUCTS_INDEX = "products";
+export const PRODUCTS_INDEX = process.env.ELASTICSEARCH_INDEX || "products";
 
 // Product mapping for Elasticsearch
 export const productMapping: any = {
@@ -123,6 +123,16 @@ export const productMapping: any = {
     // Availability and condition
     availability: { type: "keyword" },
     condition: { type: "keyword" },
+    // Category hierarchy for better filtering
+    categoryHierarchy: {
+      type: "nested",
+      properties: {
+        id: { type: "integer" },
+        name: { type: "text" },
+        slug: { type: "keyword" },
+        description: { type: "text" },
+      },
+    },
     // Subcategories
     subcategories: {
       type: "nested",
@@ -227,8 +237,33 @@ export async function indexProduct(product: any) {
           }))
         : [],
       attributesJson: product.attributesJson || {},
-      availability: product.availability || "in_stock",
-      condition: product.condition || "new",
+      availability:
+        product.availability ||
+        product.attributesJson?.availability ||
+        "in_stock",
+      condition:
+        product.condition || product.attributesJson?.condition || "new",
+      // Build category hierarchy for better filtering
+      categoryHierarchy: (() => {
+        const hierarchy = [];
+        if (product.category) {
+          hierarchy.push({
+            id: product.category.id,
+            name: product.category.name,
+            slug: product.category.slug,
+            description: product.category.description,
+          });
+
+          if (product.category.parent) {
+            hierarchy.push({
+              id: product.category.parent.id,
+              name: product.category.parent.name,
+              slug: product.category.parent.slug,
+            });
+          }
+        }
+        return hierarchy;
+      })(),
       subcategories: product.subcategories
         ? product.subcategories.map((subcat: any) => ({
             id: subcat.id,
@@ -278,7 +313,7 @@ export async function searchProducts(query: any) {
       categorySlug,
       priceRange,
       tags,
-      status = "available",
+      status = "published",
       sort = "createdAt:desc",
       page = 1,
       pageSize = 10,
@@ -289,7 +324,7 @@ export async function searchProducts(query: any) {
       bool: {
         must: [
           {
-            term: { status },
+            terms: { status: ["published", "available"] },
           },
         ],
       },
@@ -307,11 +342,59 @@ export async function searchProducts(query: any) {
       });
     }
 
-    // Add category filter
+    // Add category filter - search by category slug or parent category
     if (categorySlug) {
-      searchQuery.bool.must.push({
-        term: { "category.slug": categorySlug },
-      });
+      // For "weapons" category, we need to find all products that belong to weapons or its subcategories
+      if (categorySlug === "weapons") {
+        searchQuery.bool.must.push({
+          bool: {
+            should: [
+              { term: { "category.slug": categorySlug } },
+              { term: { "category.parent.slug": categorySlug } },
+              { term: { "category.parent.name": categorySlug } },
+              // Include products from "small-arms" category (which is a subcategory of "weapons")
+              { term: { "category.slug": "small-arms" } },
+              { term: { "category.parent.slug": "small-arms" } },
+              { term: { "category.parent.name": "Small Arms" } },
+              // Include products from "submachine-guns" category (which is a subcategory of "small-arms")
+              { term: { "category.slug": "submachine-guns" } },
+              { term: { "category.parent.slug": "submachine-guns" } },
+              { term: { "category.parent.name": "Submachine Guns (SMG)" } },
+              // Include products from "anti-tank-anti-material" category (which is a subcategory of "weapons")
+              { term: { "category.slug": "anti-tank-anti-material" } },
+              { term: { "category.parent.slug": "anti-tank-anti-material" } },
+              {
+                term: {
+                  "category.parent.name":
+                    "Anti-tank/Anti-material Small Unit Weapons",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        });
+      } else {
+        // For other categories, use the standard search
+        searchQuery.bool.must.push({
+          bool: {
+            should: [
+              { term: { "category.slug": categorySlug } },
+              { term: { "category.parent.slug": categorySlug } },
+              { term: { "category.parent.name": categorySlug } },
+              // Search in category hierarchy if it exists
+              {
+                nested: {
+                  path: "categoryHierarchy",
+                  query: {
+                    term: { "categoryHierarchy.slug": categorySlug },
+                  },
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        });
+      }
     }
 
     // Add price range filter
@@ -378,35 +461,77 @@ export async function searchProducts(query: any) {
 // Get aggregations for filters
 export async function getProductAggregations(query: any) {
   try {
-    const { categorySlug, priceRange, tags, status = "available" } = query;
+    const { categorySlug, priceRange, tags, status = "published" } = query;
 
     // Build base query (same as search)
     const searchQuery: any = {
       bool: {
         must: [
           {
-            term: { status },
+            terms: { status: ["published", "available"] },
           },
         ],
       },
     };
 
     if (categorySlug) {
-      searchQuery.bool.must.push({
-        term: { "category.slug": categorySlug },
-      });
+      // For "weapons" category, we need to find all products that belong to weapons or its subcategories
+      if (categorySlug === "weapons") {
+        searchQuery.bool.must.push({
+          bool: {
+            should: [
+              { term: { "category.slug": categorySlug } },
+              { term: { "category.parent.slug": categorySlug } },
+              { term: { "category.parent.name": categorySlug } },
+              // Include products from "small-arms" category (which is a subcategory of "weapons")
+              { term: { "category.slug": "small-arms" } },
+              { term: { "category.parent.slug": "small-arms" } },
+              { term: { "category.parent.name": "Small Arms" } },
+              // Include products from "submachine-guns" category (which is a subcategory of "small-arms")
+              { term: { "category.slug": "submachine-guns" } },
+              { term: { "category.parent.slug": "submachine-guns" } },
+              { term: { "category.parent.name": "Submachine Guns (SMG)" } },
+              // Include products from "anti-tank-anti-material" category (which is a subcategory of "weapons")
+              { term: { "category.slug": "anti-tank-anti-material" } },
+              { term: { "category.parent.slug": "anti-tank-anti-material" } },
+              {
+                term: {
+                  "category.parent.name":
+                    "Anti-tank/Anti-material Small Unit Weapons",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        });
+      } else {
+        // For other categories, use the standard search
+        searchQuery.bool.must.push({
+          bool: {
+            should: [
+              { term: { "category.slug": categorySlug } },
+              { term: { "category.parent.slug": categorySlug } },
+              { term: { "category.parent.name": categorySlug } },
+            ],
+            minimum_should_match: 1,
+          },
+        });
+      }
     }
 
-    if (priceRange) {
-      const priceFilter: any = { range: { price: {} } };
-      if (priceRange.min !== undefined) {
-        priceFilter.range.price.gte = priceRange.min;
-      }
-      if (priceRange.max !== undefined) {
-        priceFilter.range.price.lte = priceRange.max;
-      }
-      searchQuery.bool.must.push(priceFilter);
-    }
+    // Note: We don't apply priceRange filter to aggregations query
+    // because we want to show the full price range for the category
+    // The priceRange filter should only be applied to the main search query
+    // if (priceRange) {
+    //   const priceFilter: any = { range: { price: {} } };
+    //   if (priceRange.min !== undefined) {
+    //     priceFilter.range.price.gte = priceRange.min;
+    //   }
+    //   if (priceRange.max !== undefined) {
+    //     priceFilter.range.price.lte = priceRange.max;
+    //   }
+    //   searchQuery.bool.must.push(priceFilter);
+    // }
 
     if (tags && tags.length > 0) {
       searchQuery.bool.must.push({
