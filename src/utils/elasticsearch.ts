@@ -317,6 +317,9 @@ export async function searchProducts(query: any) {
       sort = "createdAt:desc",
       page = 1,
       pageSize = 10,
+      availability,
+      condition,
+      categories,
     } = query;
 
     // Build search query
@@ -421,6 +424,27 @@ export async function searchProducts(query: any) {
       });
     }
 
+    // Add availability filter
+    if (availability && availability.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { availability: availability },
+      });
+    }
+
+    // Add condition filter
+    if (condition && condition.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { condition: condition },
+      });
+    }
+
+    // Add categories filter
+    if (categories && categories.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { "category.slug": categories },
+      });
+    }
+
     // Build sort
     const sortArray = [];
     if (sort) {
@@ -461,7 +485,15 @@ export async function searchProducts(query: any) {
 // Get aggregations for filters
 export async function getProductAggregations(query: any) {
   try {
-    const { categorySlug, priceRange, tags, status = "published" } = query;
+    const {
+      categorySlug,
+      priceRange,
+      tags,
+      status = "published",
+      availability,
+      condition,
+      categories,
+    } = query;
 
     // Build base query (same as search)
     const searchQuery: any = {
@@ -519,6 +551,34 @@ export async function getProductAggregations(query: any) {
       }
     }
 
+    // Add availability filter
+    if (availability && availability.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { availability: availability },
+      });
+    }
+
+    // Add condition filter
+    if (condition && condition.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { condition: condition },
+      });
+    }
+
+    // Add categories filter
+    if (categories && categories.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { "category.slug": categories },
+      });
+    }
+
+    // Add tags filter
+    if (tags && tags.length > 0) {
+      searchQuery.bool.must.push({
+        terms: { tags: tags },
+      });
+    }
+
     // Note: We don't apply priceRange filter to aggregations query
     // because we want to show the full price range for the category
     // The priceRange filter should only be applied to the main search query
@@ -532,17 +592,6 @@ export async function getProductAggregations(query: any) {
     //   }
     //   searchQuery.bool.must.push(priceFilter);
     // }
-
-    if (tags && tags.length > 0) {
-      searchQuery.bool.must.push({
-        nested: {
-          path: "tags",
-          query: {
-            terms: { "tags.slug": tags },
-          },
-        },
-      });
-    }
 
     const response = await client.search({
       index: PRODUCTS_INDEX,

@@ -78,6 +78,9 @@ export default factories.createCoreController(
           sort = "createdAt:desc",
           page = 1,
           pageSize = 10,
+          availability,
+          condition,
+          categories,
         } = query;
 
         const searchQuery = {
@@ -89,6 +92,21 @@ export default factories.createCoreController(
           sort,
           page: Number(page),
           pageSize: Number(pageSize),
+          availability: availability
+            ? Array.isArray(availability)
+              ? availability
+              : [availability]
+            : undefined,
+          condition: condition
+            ? Array.isArray(condition)
+              ? condition
+              : [condition]
+            : undefined,
+          categories: categories
+            ? Array.isArray(categories)
+              ? categories
+              : [categories]
+            : undefined,
         };
 
         const result = await strapi
@@ -120,13 +138,35 @@ export default factories.createCoreController(
         const { slug } = ctx.params;
         const { query } = ctx;
 
-        const { priceRange, tags, status = "published" } = query;
+        const {
+          priceRange,
+          tags,
+          status = "published",
+          availability,
+          condition,
+          categories,
+        } = query;
 
         const searchQuery = {
           categorySlug: slug,
           priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
           tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
           status,
+          availability: availability
+            ? Array.isArray(availability)
+              ? availability
+              : [availability]
+            : undefined,
+          condition: condition
+            ? Array.isArray(condition)
+              ? condition
+              : [condition]
+            : undefined,
+          categories: categories
+            ? Array.isArray(categories)
+              ? categories
+              : [categories]
+            : undefined,
         };
 
         const aggregations = await strapi
