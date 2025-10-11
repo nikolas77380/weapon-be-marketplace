@@ -127,6 +127,13 @@ export const productMapping: any = {
     // Availability and condition
     availability: { type: "keyword" },
     condition: { type: "keyword" },
+    // Simple category fields for new approach
+    categoryId: { type: "integer" },
+    categoryName: { type: "keyword" },
+    categorySlug: { type: "keyword" },
+    parentCategoryId: { type: "integer" },
+    parentCategoryName: { type: "keyword" },
+    parentCategorySlug: { type: "keyword" },
     // Category hierarchy for better filtering
     categoryHierarchy: {
       type: "nested",
@@ -346,7 +353,8 @@ export async function searchProducts(query: any, strapi?: any) {
     }
 
     // Add category filter using simplified approach
-    if (categorySlug && strapi) {
+    // Only apply main category filter if no specific categories filter is provided
+    if (categorySlug && strapi && (!categories || categories.length === 0)) {
       try {
         // Get all category IDs that should be included in search
         const categoryIds = await getAllCategoryIdsForSearch(
@@ -415,7 +423,7 @@ export async function searchProducts(query: any, strapi?: any) {
     // Add categories filter
     if (categories && categories.length > 0) {
       searchQuery.bool.must.push({
-        terms: { "category.slug": categories },
+        terms: { categorySlug: categories },
       });
     }
 
@@ -500,7 +508,8 @@ export async function getProductAggregations(query: any, strapi?: any) {
     };
 
     // Add category filter using simplified approach
-    if (categorySlug) {
+    // Only apply main category filter if no specific categories filter is provided
+    if (categorySlug && (!categories || categories.length === 0)) {
       try {
         // Get all category IDs that should be included in search
         const categoryIds = await getAllCategoryIdsForSearch(
@@ -547,7 +556,7 @@ export async function getProductAggregations(query: any, strapi?: any) {
     // Add categories filter
     if (categories && categories.length > 0) {
       searchQuery.bool.must.push({
-        terms: { "category.slug": categories },
+        terms: { categorySlug: categories },
       });
     }
 
@@ -732,7 +741,7 @@ export async function searchProductsBySeller(query: any) {
     // Add categories filter
     if (categories && categories.length > 0) {
       searchQuery.bool.must.push({
-        terms: { "category.slug": categories },
+        terms: { categorySlug: categories },
       });
     }
 
@@ -840,7 +849,7 @@ export async function getSellerProductAggregations(query: any) {
     // Add categories filter
     if (categories && categories.length > 0) {
       searchQuery.bool.must.push({
-        terms: { "category.slug": categories },
+        terms: { categorySlug: categories },
       });
     }
 
