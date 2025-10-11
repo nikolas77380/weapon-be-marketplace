@@ -423,7 +423,30 @@ export async function searchProducts(query: any, strapi?: any) {
     const sortArray = [];
     if (sort) {
       const [field, order] = sort.split(":");
-      sortArray.push({ [field]: order });
+      let sortField = field;
+
+      // For text fields that have keyword subfields, use keyword for sorting
+      if (field === "title") {
+        sortField = "title.keyword";
+      } else if (field === "category.name") {
+        sortField = "category.name.keyword";
+      } else if (field === "seller.metadata.companyName") {
+        sortField = "seller.metadata.companyName.keyword";
+      } else if (field === "description") {
+        sortField = "description.keyword";
+      } else if (field === "slug") {
+        sortField = "slug";
+      } else if (field === "sku") {
+        sortField = "sku";
+      } else if (field === "status") {
+        sortField = "status";
+      } else if (field === "availability") {
+        sortField = "availability";
+      } else if (field === "condition") {
+        sortField = "condition";
+      }
+
+      sortArray.push({ [sortField]: order });
     }
 
     // Execute search
@@ -717,7 +740,30 @@ export async function searchProductsBySeller(query: any) {
     const sortArray = [];
     if (sort) {
       const [field, order] = sort.split(":");
-      sortArray.push({ [field]: order });
+      let sortField = field;
+
+      // For text fields that have keyword subfields, use keyword for sorting
+      if (field === "title") {
+        sortField = "title.keyword";
+      } else if (field === "category.name") {
+        sortField = "category.name.keyword";
+      } else if (field === "seller.metadata.companyName") {
+        sortField = "seller.metadata.companyName.keyword";
+      } else if (field === "description") {
+        sortField = "description.keyword";
+      } else if (field === "slug") {
+        sortField = "slug";
+      } else if (field === "sku") {
+        sortField = "sku";
+      } else if (field === "status") {
+        sortField = "status";
+      } else if (field === "availability") {
+        sortField = "availability";
+      } else if (field === "condition") {
+        sortField = "condition";
+      }
+
+      sortArray.push({ [sortField]: order });
     }
 
     // Execute search

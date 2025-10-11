@@ -340,6 +340,16 @@ export default factories.createCoreController(
           return ctx.badRequest("No avatar file provided");
         }
 
+        // Проверяем, что файл является изображением
+        const avatarFile = fileArray[0];
+        if (
+          !avatarFile ||
+          !(avatarFile as any).type ||
+          !(avatarFile as any).type.startsWith("image/")
+        ) {
+          return ctx.badRequest("File must be an image");
+        }
+
         // Загружаем файл
         const uploadedFile = await strapi.plugins.upload.services.upload.upload(
           {
