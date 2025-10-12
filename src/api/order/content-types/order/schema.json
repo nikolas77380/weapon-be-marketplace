@@ -33,14 +33,6 @@
       ],
       "default": "pending"
     },
-    "sendbirdChannelId": {
-      "type": "string",
-      "required": true
-    },
-    "sendbirdChannelUrl": {
-      "type": "string",
-      "required": true
-    },
     "product": {
       "type": "relation",
       "relation": "manyToOne",

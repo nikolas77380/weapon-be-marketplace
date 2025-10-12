@@ -3,7 +3,6 @@
  */
 
 import { factories } from "@strapi/strapi";
-import { createChannel } from "../../../utils/sendbird";
 
 export default factories.createCoreController(
   "api::order.order" as any,
@@ -82,37 +81,13 @@ export default factories.createCoreController(
           ? `${sellerCompanyName} - ${productTitle}`
           : `Seller ${sellerId} - ${productTitle}`;
 
-        console.log("Creating SendBird channel...");
-
-        // Создаем канал в SendBird
-        const channelResponse = await createChannel({
-          sellerId: sellerId,
-          buyerId: currentUser.id,
-          channelName: channelName,
-        });
-
-        console.log("SendBird channel created:", channelResponse);
-        console.log("Channel response structure:", {
-          channel_id: channelResponse.channel_id,
-          channel_url: channelResponse.channel_url,
-          name: channelResponse.name,
-        });
-
-        // Проверяем, что у нас есть необходимые данные
-        if (!channelResponse.channel_url) {
-          console.error("Missing channel_url in SendBird response");
-          return ctx.internalServerError("Failed to create SendBird channel");
-        }
+        console.log("Chat functionality is temporarily unavailable");
 
         // Создаем заказ в базе данных
         const orderData = {
           seller: sellerId,
           buyer: currentUser.id,
           status: "pending" as const,
-          sendbirdChannelId:
-            channelResponse.channel_id ||
-            channelResponse.channel_url?.split("/").pop(),
-          sendbirdChannelUrl: channelResponse.channel_url,
           product: productId,
         };
 
@@ -139,15 +114,6 @@ export default factories.createCoreController(
           order: {
             id: order.id,
             status: order.status,
-            sendbirdChannelId: order.sendbirdChannelId,
-            sendbirdChannelUrl: order.sendbirdChannelUrl,
-          },
-          channel: {
-            channelUrl: channelResponse.channel_url,
-            name: channelResponse.name,
-            channelId:
-              channelResponse.channel_id ||
-              channelResponse.channel_url?.split("/").pop(),
           },
           product: {
             id: productData.id,

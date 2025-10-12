@@ -265,6 +265,13 @@ export default factories.createCoreController(
     },
     async create(ctx) {
       try {
+        console.log("=== PRODUCT CREATE CONTROLLER START ===");
+        console.log("Request URL:", ctx.request.url);
+        console.log("Request method:", ctx.request.method);
+        console.log("Request headers:", ctx.request.headers);
+        console.log("Request body:", JSON.stringify(ctx.request.body, null, 2));
+        console.log("User:", ctx.state.user);
+
         if (!ctx.state.user) {
           return ctx.unauthorized(
             "User must be authenticated to create a product"
@@ -281,11 +288,142 @@ export default factories.createCoreController(
           data = ctx.request.body;
         }
 
-        const productData = {
-          ...data,
+        console.log(
+          "Original data from request:",
+          JSON.stringify(data, null, 2)
+        );
+        console.log("Request headers:", ctx.request.headers);
+        console.log("Request URL:", ctx.request.url);
+        console.log("Request method:", ctx.request.method);
+
+        // Handle admin panel format for relations
+        if (
+          data.category &&
+          typeof data.category === "object" &&
+          data.category.connect
+        ) {
+          console.log("Converting category from admin format:", data.category);
+          data.category = data.category.connect[0].id;
+          console.log("Converted category to:", data.category);
+        }
+
+        if (
+          data.seller &&
+          typeof data.seller === "object" &&
+          data.seller.connect
+        ) {
+          console.log("Converting seller from admin format:", data.seller);
+          data.seller = data.seller.connect[0].id;
+          console.log("Converted seller to:", data.seller);
+        }
+
+        // Handle tags relation if it exists
+        if (data.tags && Array.isArray(data.tags) && data.tags.length > 0) {
+          if (
+            data.tags[0] &&
+            typeof data.tags[0] === "object" &&
+            data.tags[0].connect
+          ) {
+            console.log("Converting tags from admin format:", data.tags);
+            data.tags = data.tags.map((tag) => tag.connect[0].id);
+            console.log("Converted tags to:", data.tags);
+          }
+        }
+
+        // Remove null values that might cause validation issues
+        const cleanedData = Object.fromEntries(
+          Object.entries(data).filter(([_, value]) => value !== null)
+        );
+
+        console.log("Cleaned data:", JSON.stringify(cleanedData, null, 2));
+
+        // Handle status field - ensure it's a string
+        if (cleanedData.status) {
+          console.log(
+            "Processing status field:",
+            cleanedData.status,
+            "Type:",
+            typeof cleanedData.status
+          );
+
+          if (
+            typeof cleanedData.status === "object" &&
+            cleanedData.status !== null
+          ) {
+            console.log(
+              "Status is an object, extracting value:",
+              cleanedData.status
+            );
+            // If status comes as an object, try to extract the value
+            const statusObj = cleanedData.status as any;
+            if (statusObj.value) {
+              cleanedData.status = statusObj.value;
+            } else if (statusObj.label) {
+              cleanedData.status = statusObj.label;
+            } else {
+              console.log(
+                "Could not extract status from object, setting default"
+              );
+              cleanedData.status = "available";
+            }
+          } else if (Array.isArray(cleanedData.status)) {
+            console.log(
+              "Status is an array, taking first element:",
+              cleanedData.status
+            );
+            cleanedData.status = cleanedData.status[0];
+          }
+
+          // Convert to string and trim
+          cleanedData.status = String(cleanedData.status).trim();
+          console.log("Processed status:", cleanedData.status);
+        }
+
+        // Ensure status is valid
+        const validStatuses = ["available", "reserved", "sold", "archived"];
+        if (
+          cleanedData.status &&
+          !validStatuses.includes(String(cleanedData.status))
+        ) {
+          console.log(
+            "Invalid status provided:",
+            cleanedData.status,
+            "Type:",
+            typeof cleanedData.status
+          );
+          return ctx.badRequest(
+            `Invalid status. Must be one of: ${validStatuses.join(", ")}`
+          );
+        }
+
+        // Set default status if not provided or invalid
+        if (!cleanedData.status) {
+          cleanedData.status = "available";
+          console.log("Setting default status to 'available'");
+        }
+
+        console.log(
+          "Final status value:",
+          cleanedData.status,
+          "Type:",
+          typeof cleanedData.status
+        );
+
+        // Force status to be a valid string
+        if (cleanedData.status) {
+          cleanedData.status = String(cleanedData.status).trim().toLowerCase();
+        }
+
+        const productData: any = {
+          ...cleanedData,
           seller: ctx.state.user.id,
           publishedAt: new Date(), // Автоматически публикуем продукт
         };
+
+        console.log(
+          "Final product data:",
+          JSON.stringify(productData, null, 2)
+        );
 
         if (!productData.title) {
           return ctx.badRequest("Title is required");
@@ -415,9 +553,14 @@ export default factories.createCoreController(
           // Don't fail the request if Elasticsearch indexing fails
         }
 
+        console.log("=== PRODUCT CREATE CONTROLLER SUCCESS ===");
         return ctx.created(finalProduct);
       } catch (error) {
+        console.log("=== PRODUCT CREATE CONTROLLER ERROR ===");
         console.error("Error creating product:", error);
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+        console.error("Error details:", error.details);
         return ctx.internalServerError("Failed to create product");
       }
     },
@@ -660,6 +803,28 @@ export default factories.createCoreController(
         } else {
           data = ctx.request.body;
         }
+
+        // Handle admin panel format for relations
+        if (
+          data.category &&
+          typeof data.category === "object" &&
+          data.category.connect
+        ) {
+          data.category = data.category.connect[0].id;
+        }
+
+        if (
+          data.seller &&
+          typeof data.seller === "object" &&
+          data.seller.connect
+        ) {
+          data.seller = data.seller.connect[0].id;
+        }
+
+        // Remove null values that might cause validation issues
+        data = Object.fromEntries(
+          Object.entries(data).filter(([_, value]) => value !== null)
+        );
 
         console.log("Update product data:", data);
         console.log("Update files:", ctx.request.files);

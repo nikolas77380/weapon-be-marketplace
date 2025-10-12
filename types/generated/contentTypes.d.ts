@@ -558,8 +558,6 @@ export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
       'manyToOne',
       'plugin::users-permissions.user'
     >;
-    sendbirdChannelId: Schema.Attribute.String & Schema.Attribute.Required;
-    sendbirdChannelUrl: Schema.Attribute.String & Schema.Attribute.Required;
     status: Schema.Attribute.Enumeration<
       ['pending', 'confirmed', 'completed', 'cancelled']
     > &

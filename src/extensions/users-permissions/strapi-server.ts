@@ -1,5 +1,3 @@
-const sendbirdUtils = require("../../utils/sendbird");
-
 const strapiServerOverride = (plugin) => {
   // Override the default register controller
   plugin.controllers.auth.register = async (ctx) => {
@@ -79,43 +77,9 @@ const strapiServerOverride = (plugin) => {
         ...userWithoutSensitiveData
       } = userWithData;
 
-      let sendbird = null;
-      console.log("=== STARTING SENDBIRD INTEGRATION ===");
-      try {
-        console.log("Calling sendbirdEnsureUser...");
-        await sendbirdUtils.ensureUser({
-          userId: user.id,
-          nickname: user.username || user.email,
-          profile_url: user.avatar?.url,
-        });
-        console.log("sendbirdEnsureUser completed successfully");
-
-        const ttl = process.env.SENDBIRD_SESSION_TTL_SECONDS || 86400;
-        console.log("Calling issueSessionToken...");
-        const { token, expires_at } = await sendbirdUtils.issueSessionToken({
-          userId: user.id,
-          ttlSeconds: ttl,
-        });
-        console.log("issueSessionToken completed successfully");
-
-        sendbird = {
-          app_id: process.env.SENDBIRD_APP_ID,
-          user_id: String(user.id),
-          session_token: token,
-          expires_at,
-        };
-        console.log("Sendbird data created:", sendbird);
-      } catch (e) {
-        console.error("=== SENDBIRD ERROR ===", e);
-        strapi.log.warn(
-          `Sendbird on register failed uid=${user.id}: ${e.message}`
-        );
-      }
-
       return {
         jwt,
         user: userWithoutSensitiveData,
-        sendbirdSessionToken: sendbird?.session_token,
       };
     } catch (error) {
       return ctx.badRequest(error.message);
@@ -174,58 +138,9 @@ const strapiServerOverride = (plugin) => {
         confirmationToken: ___,
         ...userWithoutSensitiveData
       } = user;
-      try {
-        await sendbirdUtils.ensureUser({
-          userId: user.id,
-          nickname: user.username || user.email,
-          profile_url: user.avatar?.url,
-        });
-      } catch (e) {
-        strapi.log.warn(
-          `Sendbird ensureUser on login failed uid=${user.id}: ${e.message}`
-        );
-      }
-
-      let sendbird;
-      try {
-        console.log("=== SENDBIRD LOGIN INTEGRATION ===");
-        console.log("User ID:", user.id);
-        console.log("SENDBIRD_APP_ID:", process.env.SENDBIRD_APP_ID);
-        console.log(
-          "SENDBIRD_API_TOKEN exists:",
-          !!process.env.SENDBIRD_API_TOKEN
-        );
-
-        const ttl = process.env.SENDBIRD_SESSION_TTL_SECONDS || 86400;
-        console.log("TTL:", ttl);
-
-        console.log("Calling issueSessionToken...");
-        const { token, expires_at } = await sendbirdUtils.issueSessionToken({
-          userId: user.id,
-          ttlSeconds: ttl,
-        });
-        console.log("Token received:", !!token);
-        console.log("Expires at:", expires_at);
-
-        sendbird = {
-          app_id: process.env.SENDBIRD_APP_ID,
-          user_id: String(user.id),
-          session_token: token,
-          expires_at,
-        };
-        console.log("Sendbird object created successfully");
-      } catch (e) {
-        console.error("=== SENDBIRD LOGIN ERROR ===", e);
-        strapi.log.warn(
-          `Sendbird session token issue failed uid=${user.id}: ${e.message}`
-        );
-        sendbird = null;
-      }
-      console.log("Final sendbird object:", sendbird);
       return {
         jwt,
         user: userWithoutSensitiveData,
-        sendbirdSessionToken: sendbird?.session_token,
       };
     } catch (error) {
       console.error("=== CALLBACK CONTROLLER ERROR ===", error);
