@@ -67,38 +67,21 @@ export default (config, { strapi }) => {
 
         console.log("Auth middleware: User created:", user);
 
-        // Send email confirmation
+        // Send email confirmation using Strapi's built-in email system
         try {
+          // Generate confirmation token
           const confirmationToken =
             await strapi.plugins[
               "users-permissions"
             ].services.user.generateConfirmationToken(user);
           const confirmationUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/confirm?confirmation=${confirmationToken}`;
 
-          // Simple email template
-          const htmlContent = `
-            <!DOCTYPE html>
-            <html>
-            <head><title>Підтвердження email</title></head>
-            <body>
-              <h1>Ласкаво просимо до esviem-defence!</h1>
-              <p>Привіт, <strong>${username}</strong>!</p>
-              <p>Підтвердіть ваш email: <a href="${confirmationUrl}">Підтвердити</a></p>
-              <p>Посилання: ${confirmationUrl}</p>
-            </body>
-            </html>
-          `;
+          // Use Strapi's built-in email confirmation system
+          await strapi.plugins[
+            "users-permissions"
+          ].services.user.sendConfirmationEmail(user, confirmationUrl);
 
-          const textContent = `Ласкаво просимо! Підтвердіть email: ${confirmationUrl}`;
-
-          await strapi.plugins.email.services.email.send({
-            to: email,
-            subject: "Підтвердження email - esviem-defence",
-            html: htmlContent,
-            text: textContent,
-          });
-
-          console.log("✅ Confirmation email sent via Namecheap to:", email);
+          console.log("✅ Confirmation email sent via Strapi to:", email);
         } catch (emailError) {
           console.error("❌ Failed to send confirmation email:", emailError);
           // Don't fail registration if email fails, but log the error
