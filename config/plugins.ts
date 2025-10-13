@@ -7,6 +7,19 @@ export default ({ env }) => ({
       register: {
         allowedFields: ["email", "username", "password", "displayName", "role"],
       },
+      emailConfirmation: {
+        enabled: true,
+        template: {
+          subject: "Підтвердження email - esviem-defence",
+          html: `
+            <h1>Ласкаво просимо до esviem-defence!</h1>
+            <p>Привіт!</p>
+            <p>Підтвердіть ваш email: <a href="<%= URL %>?confirmation=<%= TOKEN %>">Підтвердити</a></p>
+            <p>Посилання: <%= URL %>?confirmation=<%= TOKEN %></p>
+          `,
+          text: `Ласкаво просимо! Підтвердіть email: <%= URL %>?confirmation=<%= TOKEN %>`,
+        },
+      },
     },
   },
   email: {
@@ -31,11 +44,8 @@ export default ({ env }) => ({
         socketTimeout: 60000,
       },
       settings: {
-        defaultFrom: env("NAMECHEAP_DEFAULT_FROM", "noreply@yourdomain.com"),
-        defaultReplyTo: env(
-          "NAMECHEAP_DEFAULT_REPLY_TO",
-          "noreply@yourdomain.com"
-        ),
+        defaultFrom: "support@esviem-defence.com",
+        defaultReplyTo: "support@esviem-defence.com",
       },
     },
   },
