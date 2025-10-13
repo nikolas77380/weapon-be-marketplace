@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Підтвердження email - esviem-defence</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        background-color: #ffffff;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px 20px;
+        text-align: center;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+      }
+      .content {
+        padding: 40px 30px;
+      }
+      .content h2 {
+        color: #2c3e50;
+        margin-bottom: 20px;
+        font-size: 24px;
+      }
+      .content p {
+        margin-bottom: 15px;
+        font-size: 16px;
+      }
+      .button-container {
+        text-align: center;
+        margin: 30px 0;
+      }
+      .button {
+        display: inline-block;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px 30px;
+        text-decoration: none;
+        border-radius: 25px;
+        font-weight: 600;
+        font-size: 16px;
+        transition: transform 0.2s;
+      }
+      .button:hover {
+        transform: translateY(-2px);
+      }
+      .url-box {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 20px 0;
+        word-break: break-all;
+        font-family: monospace;
+        font-size: 14px;
+      }
+      .footer {
+        background-color: #f8f9fa;
+        padding: 20px 30px;
+        text-align: center;
+        border-top: 1px solid #e9ecef;
+      }
+      .footer p {
+        margin: 5px 0;
+        font-size: 14px;
+        color: #6c757d;
+      }
+      .highlight {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 5px;
+        padding: 10px;
+        margin: 15px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🎉 Ласкаво просимо до esviem-defence!</h1>
+      </div>
+
+      <div class="content">
+        <h2>Підтвердіть вашу email адресу</h2>
+
+        <p>Привіт, <strong>%USERNAME%</strong>!</p>
+
+        <p>
+          Дякуємо за реєстрацію в нашій системі esviem-defence. Для завершення
+          реєстрації та активації вашого акаунту, будь ласка, підтвердіть вашу
+          email адресу.
+        </p>
+
+        <div class="button-container">
+          <a href="%URL%" class="button">✅ Підтвердити email</a>
+        </div>
+
+        <div class="highlight">
+          <strong>💡 Важливо:</strong> Це посилання дійсне протягом 24 годин.
+        </div>
+
+        <p>
+          Якщо кнопка не працює, скопіюйте та вставте наступне посилання у ваш
+          браузер:
+        </p>
+
+        <div class="url-box">%URL%</div>
+
+        <p>Після підтвердження ви зможете:</p>
+        <ul>
+          <li>🔐 Увійти в свій акаунт</li>
+          <li>🛒 Купувати товари</li>
+          <li>🏪 Продавати товари</li>
+          <li>💬 Спілкуватися з іншими користувачами</li>
+        </ul>
+      </div>
+
+      <div class="footer">
+        <p>
+          Якщо ви не реєструвалися в нашій системі esviem-defence, просто
+          проігноруйте цей лист.
+        </p>
+        <p>© 2025 esviem-defence. Всі права захищені.</p>
+      </div>
+    </div>
+  </body>
+</html>

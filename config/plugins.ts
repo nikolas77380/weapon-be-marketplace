@@ -4,6 +4,33 @@ export default ({ env }) => ({
       jwt: {
         expiresIn: "30d",
       },
+      register: {
+        allowedFields: ["email", "username", "password", "displayName", "role"],
+      },
+    },
+  },
+  email: {
+    config: {
+      provider: "@strapi/provider-email-nodemailer",
+      providerOptions: {
+        host: env("NAMECHEAP_SMTP_HOST", "mail.privateemail.com"),
+        port: env("NAMECHEAP_SMTP_PORT", 587),
+        auth: {
+          user: env("NAMECHEAP_SMTP_USERNAME"),
+          pass: env("NAMECHEAP_SMTP_PASSWORD"),
+        },
+        secure: env("NAMECHEAP_SMTP_SECURE", false),
+        tls: {
+          rejectUnauthorized: false,
+        },
+      },
+      settings: {
+        defaultFrom: env("NAMECHEAP_DEFAULT_FROM", "noreply@yourdomain.com"),
+        defaultReplyTo: env(
+          "NAMECHEAP_DEFAULT_REPLY_TO",
+          "noreply@yourdomain.com"
+        ),
+      },
     },
   },
   upload: {

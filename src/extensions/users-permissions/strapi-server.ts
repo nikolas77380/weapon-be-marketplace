@@ -40,16 +40,84 @@ const strapiServerOverride = (plugin) => {
 
       const roleId = roleEntity[0].id;
 
-      // Create user with role
+      // Create user with role (not confirmed initially)
       const user = await strapi.plugins["users-permissions"].services.user.add({
         email,
         username,
         password,
         displayName,
         provider: "local",
-        confirmed: true, // Auto-confirm users
+        confirmed: false, // Require email confirmation
         role: roleId,
       });
+
+      // Send email confirmation via Namecheap
+      try {
+        const confirmationToken =
+          await strapi.plugins[
+            "users-permissions"
+          ].services.user.generateConfirmationToken(user);
+        const confirmationUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/confirm?confirmation=${confirmationToken}`;
+
+        // Load email template
+        const fs = require("fs");
+        const path = require("path");
+        const templatePath = path.join(
+          __dirname,
+          "email-templates",
+          "email-confirmation.html"
+        );
+        const textTemplatePath = path.join(
+          __dirname,
+          "email-templates",
+          "email-confirmation.txt"
+        );
+
+        let htmlTemplate = "";
+        let textTemplate = "";
+
+        try {
+          htmlTemplate = fs.readFileSync(templatePath, "utf8");
+          textTemplate = fs.readFileSync(textTemplatePath, "utf8");
+        } catch (templateError) {
+          console.log("Using fallback email template");
+          // Fallback template
+          htmlTemplate = `
+            <!DOCTYPE html>
+            <html>
+            <head><title>Підтвердження email</title></head>
+            <body>
+              <h1>Ласкаво просимо до esviem-defence!</h1>
+              <p>Привіт, <strong>${username}</strong>!</p>
+              <p>Підтвердіть ваш email: <a href="${confirmationUrl}">Підтвердити</a></p>
+              <p>Посилання: ${confirmationUrl}</p>
+            </body>
+            </html>
+          `;
+          textTemplate = `Ласкаво просимо! Підтвердіть email: ${confirmationUrl}`;
+        }
+
+        // Replace placeholders
+        const htmlContent = htmlTemplate
+          .replace(/%USERNAME%/g, username)
+          .replace(/%URL%/g, confirmationUrl);
+
+        const textContent = textTemplate
+          .replace(/%USERNAME%/g, username)
+          .replace(/%URL%/g, confirmationUrl);
+
+        await strapi.plugins.email.services.email.send({
+          to: email,
+          subject: "Підтвердження email - esviem-defence",
+          html: htmlContent,
+          text: textContent,
+        });
+
+        console.log("✅ Confirmation email sent via Namecheap to:", email);
+      } catch (emailError) {
+        console.error("❌ Failed to send confirmation email:", emailError);
+        // Don't fail registration if email fails, but log the error
+      }
 
       // Get user with populated data
       const userWithData = await strapi
@@ -64,10 +132,8 @@ const strapiServerOverride = (plugin) => {
           },
         });
 
-      // Generate JWT token
-      const jwt = strapi.plugins["users-permissions"].services.jwt.issue({
-        id: user.id,
-      });
+      // Don't generate JWT token for unconfirmed users
+      // User needs to confirm email first
 
       // Remove sensitive data
       const {
@@ -78,10 +144,79 @@ const strapiServerOverride = (plugin) => {
       } = userWithData;
 
       return {
-        jwt,
+        message:
+          "Реєстрація успішна! Будь ласка, перевірте вашу email та підтвердіть акаунт.",
         user: userWithoutSensitiveData,
       };
     } catch (error) {
+      return ctx.badRequest(error.message);
+    }
+  };
+
+  // Add email confirmation controller
+  plugin.controllers.auth.confirm = async (ctx) => {
+    try {
+      console.log("=== EMAIL CONFIRMATION CONTROLLER CALLED ===");
+      const { confirmation } = ctx.query;
+
+      if (!confirmation) {
+        return ctx.badRequest("Confirmation token is required");
+      }
+
+      // Find user by confirmation token
+      const user = await strapi
+        .query("plugin::users-permissions.user")
+        .findOne({
+          where: { confirmationToken: confirmation },
+          populate: {
+            role: true,
+            metadata: true,
+          },
+        });
+
+      if (!user) {
+        return ctx.badRequest("Invalid confirmation token");
+      }
+
+      // Check if token is expired (24 hours)
+      const tokenAge =
+        Date.now() - new Date(user.confirmationTokenCreatedAt).getTime();
+      const tokenMaxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+      if (tokenAge > tokenMaxAge) {
+        return ctx.badRequest(
+          "Confirmation token has expired. Please request a new one."
+        );
+      }
+
+      // Confirm the user
+      await strapi.plugins["users-permissions"].services.user.edit(user.id, {
+        confirmed: true,
+        confirmationToken: null,
+        confirmationTokenCreatedAt: null,
+      });
+
+      // Generate JWT token for the confirmed user
+      const jwt = strapi.plugins["users-permissions"].services.jwt.issue({
+        id: user.id,
+      });
+
+      // Remove sensitive data
+      const {
+        password: _,
+        resetPasswordToken: __,
+        confirmationToken: ___,
+        ...userWithoutSensitiveData
+      } = user;
+
+      return {
+        jwt,
+        user: userWithoutSensitiveData,
+        message:
+          "Email успішно підтверджено! Ласкаво просимо до esviem-defence!",
+      };
+    } catch (error) {
+      console.error("=== EMAIL CONFIRMATION ERROR ===", error);
       return ctx.badRequest(error.message);
     }
   };
