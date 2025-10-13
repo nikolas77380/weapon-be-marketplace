@@ -44,14 +44,14 @@ export default (config, { strapi }) => {
 
         const roleId = roleEntity[0].id;
 
-        // Create user with role
+        // Create user with role (not confirmed initially)
         const userData = {
           email,
           username,
           password,
           displayName,
           provider: "local",
-          confirmed: true, // Auto-confirm users
+          confirmed: false, // Require email confirmation
           role: roleId,
         };
 
@@ -67,6 +67,43 @@ export default (config, { strapi }) => {
 
         console.log("Auth middleware: User created:", user);
 
+        // Send email confirmation
+        try {
+          const confirmationToken =
+            await strapi.plugins[
+              "users-permissions"
+            ].services.user.generateConfirmationToken(user);
+          const confirmationUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/confirm?confirmation=${confirmationToken}`;
+
+          // Simple email template
+          const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head><title>Підтвердження email</title></head>
+            <body>
+              <h1>Ласкаво просимо до esviem-defence!</h1>
+              <p>Привіт, <strong>${username}</strong>!</p>
+              <p>Підтвердіть ваш email: <a href="${confirmationUrl}">Підтвердити</a></p>
+              <p>Посилання: ${confirmationUrl}</p>
+            </body>
+            </html>
+          `;
+
+          const textContent = `Ласкаво просимо! Підтвердіть email: ${confirmationUrl}`;
+
+          await strapi.plugins.email.services.email.send({
+            to: email,
+            subject: "Підтвердження email - esviem-defence",
+            html: htmlContent,
+            text: textContent,
+          });
+
+          console.log("✅ Confirmation email sent via Namecheap to:", email);
+        } catch (emailError) {
+          console.error("❌ Failed to send confirmation email:", emailError);
+          // Don't fail registration if email fails, but log the error
+        }
+
         // Fetch the user again to get all fields
         const fullUser = await strapi.entityService.findOne(
           "plugin::users-permissions.user",
@@ -78,14 +115,13 @@ export default (config, { strapi }) => {
 
         console.log("Auth middleware: Full user data:", fullUser);
 
-        // Generate JWT token
-        const jwt = strapi.plugins["users-permissions"].services.jwt.issue({
-          id: user.id,
-        });
+        // Don't generate JWT token for unconfirmed users
+        // User needs to confirm email first
 
-        // Return the response directly
+        // Return the response without JWT
         const response = {
-          jwt,
+          message:
+            "Реєстрація успішна! Будь ласка, перевірте вашу email та підтвердіть акаунт.",
           user: {
             id: fullUser.id,
             username: fullUser.username,
