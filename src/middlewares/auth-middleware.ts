@@ -69,19 +69,72 @@ export default (config, { strapi }) => {
 
         // Send email confirmation using Strapi's built-in email system
         try {
-          // Generate confirmation token
-          const confirmationToken =
-            await strapi.plugins[
-              "users-permissions"
-            ].services.user.generateConfirmationToken(user);
+          // Generate confirmation token using the correct Strapi 5.x API
+          const confirmationToken = await strapi.plugins[
+            "users-permissions"
+          ].services.user.generateConfirmationToken(user.id);
           const confirmationUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/confirm?confirmation=${confirmationToken}`;
 
-          // Use Strapi's built-in email confirmation system
-          await strapi.plugins[
-            "users-permissions"
-          ].services.user.sendConfirmationEmail(user, confirmationUrl);
+          // Send email using Strapi's email service
+          await strapi.plugins.email.services.email.send({
+            to: email,
+            subject: "Підтвердження email - esviem-defence",
+            html: `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <title>Підтвердження email</title>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                  .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                  .header { background: #2c3e50; color: white; padding: 20px; text-align: center; }
+                  .content { padding: 20px; background: #f9f9f9; }
+                  .button { display: inline-block; background: #3498db; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+                  .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+                </style>
+              </head>
+              <body>
+                <div class="container">
+                  <div class="header">
+                    <h1>esviem-defence</h1>
+                  </div>
+                  <div class="content">
+                    <h2>Ласкаво просимо!</h2>
+                    <p>Привіт, <strong>${username}</strong>!</p>
+                    <p>Дякуємо за реєстрацію на нашій платформі. Для завершення реєстрації, будь ласка, підтвердіть ваш email адрес.</p>
+                    <p style="text-align: center;">
+                      <a href="${confirmationUrl}" class="button">Підтвердити Email</a>
+                    </p>
+                    <p>Якщо кнопка не працює, скопіюйте та вставте це посилання у ваш браузер:</p>
+                    <p style="word-break: break-all; background: #eee; padding: 10px; border-radius: 3px;">${confirmationUrl}</p>
+                    <p>Це посилання дійсне протягом 24 годин.</p>
+                  </div>
+                  <div class="footer">
+                    <p>&copy; 2025 esviem-defence. Всі права захищені.</p>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `,
+            text: `
+              Ласкаво просимо до esviem-defence!
+              
+              Привіт, ${username}!
+              
+              Дякуємо за реєстрацію на нашій платформі. Для завершення реєстрації, будь ласка, підтвердіть ваш email адрес.
+              
+              Підтвердити email: ${confirmationUrl}
+              
+              Це посилання дійсне протягом 24 годин.
+              
+              З повагою,
+              Команда esviem-defence
+            `,
+          });
 
-          console.log("✅ Confirmation email sent via Strapi to:", email);
+          console.log("✅ Confirmation email sent via Namecheap to:", email);
         } catch (emailError) {
           console.error("❌ Failed to send confirmation email:", emailError);
           // Don't fail registration if email fails, but log the error
