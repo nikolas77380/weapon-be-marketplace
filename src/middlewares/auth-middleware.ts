@@ -69,10 +69,16 @@ export default (config, { strapi }) => {
 
         // Send email confirmation using Strapi's built-in email system
         try {
-          // Generate confirmation token using the correct Strapi 5.x API
-          const confirmationToken = await strapi.plugins[
-            "users-permissions"
-          ].services.user.generateConfirmationToken(user.id);
+          // Generate confirmation token manually (since Strapi 5.x doesn't have this method)
+          const crypto = require('crypto');
+          const confirmationToken = crypto.randomBytes(32).toString('hex');
+          
+          // Update user with confirmation token
+          await strapi.entityService.update("plugin::users-permissions.user", user.id, {
+            data: {
+              confirmationToken: confirmationToken,
+            },
+          });
           const confirmationUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/confirm?confirmation=${confirmationToken}`;
 
           // Send email using Strapi's email service
