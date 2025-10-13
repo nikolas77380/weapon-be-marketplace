@@ -14,15 +14,21 @@ export default ({ env }) => ({
       provider: "@strapi/provider-email-nodemailer",
       providerOptions: {
         host: env("NAMECHEAP_SMTP_HOST", "mail.privateemail.com"),
-        port: env("NAMECHEAP_SMTP_PORT", 587),
+        port: parseInt(env("NAMECHEAP_SMTP_PORT", "587")),
         auth: {
           user: env("NAMECHEAP_SMTP_USERNAME"),
           pass: env("NAMECHEAP_SMTP_PASSWORD"),
         },
-        secure: env("NAMECHEAP_SMTP_SECURE", false),
+        secure: false, // Use STARTTLS instead of SSL
+        requireTLS: true,
         tls: {
           rejectUnauthorized: false,
+          ciphers: "SSLv3",
+          secureProtocol: "TLSv1_2_method",
         },
+        connectionTimeout: 60000,
+        greetingTimeout: 30000,
+        socketTimeout: 60000,
       },
       settings: {
         defaultFrom: env("NAMECHEAP_DEFAULT_FROM", "noreply@yourdomain.com"),
