@@ -33,10 +33,24 @@ export default [
     name: "strapi::cors",
     config: {
       enabled: true,
-      origin: ["*"],
-      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      headers: ["Content-Type", "Authorization", "Origin", "Accept"],
+      origin: [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        process.env.FRONTEND_URL || "http://localhost:3000",
+        "https://esviem-defence.com", // Ваш продакшен домен
+        "https://www.esviem-defence.com", // С www
+        "https://esviem-defence.com/auth/confirmation-success", // Конкретная страница
+      ],
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+      headers: [
+        "Content-Type",
+        "Authorization",
+        "Origin",
+        "Accept",
+        "X-Requested-With",
+      ],
       keepHeadersOnError: true,
+      credentials: true, // Важно для CORS с credentials
     },
   },
   "strapi::poweredBy",
