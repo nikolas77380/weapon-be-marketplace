@@ -14,7 +14,11 @@ export default {
           where: { id: user.id },
           populate: {
             role: true,
-            metadata: true,
+            metadata: {
+              populate: {
+                avatar: true,
+              },
+            },
           },
         });
 
@@ -48,7 +52,11 @@ export default {
 
       const populate = {
         role: true,
-        metadata: true,
+        metadata: {
+          populate: {
+            avatar: true,
+          },
+        },
         products: {
           populate: {
             images: true,
@@ -148,7 +156,11 @@ export default {
 
       const populate = {
         role: true,
-        metadata: true,
+        metadata: {
+          populate: {
+            avatar: true,
+          },
+        },
         products: {
           populate: {
             images: true,

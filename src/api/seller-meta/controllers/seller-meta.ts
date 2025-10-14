@@ -13,6 +13,7 @@ export default factories.createCoreController(
 
         const populate = {
           sellerEntity: true,
+          avatar: true,
         };
 
         const page = Number((query.pagination as any)?.page) || 1;
@@ -67,6 +68,7 @@ export default factories.createCoreController(
           {
             populate: {
               sellerEntity: true,
+              avatar: true,
             },
           }
         );
@@ -94,6 +96,7 @@ export default factories.createCoreController(
             },
             populate: {
               sellerEntity: true,
+              avatar: true,
             },
           }
         );
