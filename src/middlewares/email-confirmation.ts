@@ -63,11 +63,8 @@ export default (config, { strapi }) => {
 
         // Send email confirmation via Namecheap
         try {
-          const confirmationToken =
-            await strapi.plugins[
-              "users-permissions"
-            ].services.user.generateConfirmationToken(user);
-          const confirmationUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/confirm?confirmation=${confirmationToken}`;
+          // Use Strapi's built-in email confirmation system
+          const confirmationUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/confirm?confirmation=${user.confirmationToken}`;
 
           // Load email template
           const fs = require("fs");
@@ -136,9 +133,6 @@ export default (config, { strapi }) => {
             where: { id: user.id },
             populate: {
               role: true,
-              metadata: {
-                populate: "*",
-              },
             },
           });
 

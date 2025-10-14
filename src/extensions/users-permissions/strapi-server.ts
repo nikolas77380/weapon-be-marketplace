@@ -168,18 +168,6 @@ const strapiServerOverride = (plugin) => {
     ...require("./controllers/user").default,
   };
 
-  // Add custom auth controller
-  plugin.controllers.auth = {
-    ...plugin.controllers.auth,
-    ...require("./controllers/auth").default,
-  };
-
-  // Add custom routes
-  plugin.routes = {
-    ...plugin.routes,
-    ...require("./routes/auth").default,
-  };
-
   return plugin;
 };
 
