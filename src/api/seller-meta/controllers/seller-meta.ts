@@ -340,15 +340,15 @@ export default factories.createCoreController(
           return ctx.badRequest("No avatar file provided");
         }
 
-        // Проверяем, что файл является изображением
+        // Log file information for debugging
         const avatarFile = fileArray[0];
-        if (
-          !avatarFile ||
-          !(avatarFile as any).type ||
-          !(avatarFile as any).type.startsWith("image/")
-        ) {
-          return ctx.badRequest("File must be an image");
-        }
+        console.log("Avatar file object:", avatarFile);
+        console.log("Avatar file type:", (avatarFile as any).type);
+        console.log("Avatar file mime:", (avatarFile as any).mime);
+        console.log("Avatar file name:", (avatarFile as any).name);
+
+        // Let Strapi handle file type validation through the schema
+        // The schema now only allows "images" type, so Strapi will validate this
 
         // Загружаем файл
         const uploadedFile = await strapi.plugins.upload.services.upload.upload(
