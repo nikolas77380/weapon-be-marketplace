@@ -49,4 +49,8 @@ export default [
     name: "global::auth-middleware",
     config: {},
   },
+  {
+    name: "global::email-confirmation",
+    config: {},
+  },
 ];

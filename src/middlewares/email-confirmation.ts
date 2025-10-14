@@ -1,167 +1,63 @@
 /**
  * Middleware для обработки email подтверждения при регистрации
+ * Следует официальному руководству Strapi
  */
 
 export default (config, { strapi }) => {
   return async (ctx, next) => {
-    // Проверяем, что это запрос на регистрацию
+    // Let Strapi handle the registration first
+    await next();
+
+    // After Strapi processes the registration, check if it was successful
     if (
       ctx.request.url === "/api/auth/local/register" &&
-      ctx.request.method === "POST"
+      ctx.request.method === "POST" &&
+      ctx.status === 200
     ) {
-      console.log("=== EMAIL CONFIRMATION MIDDLEWARE CALLED ===");
-      console.log("Request body:", ctx.request.body);
+      console.log(
+        "=== EMAIL CONFIRMATION MIDDLEWARE CALLED AFTER SUCCESSFUL REGISTRATION ==="
+      );
 
-      const { email, username, password, displayName, role } = ctx.request.body;
+      const { email, displayName } = ctx.request.body;
+      const user = ctx.body.user;
 
-      // Validate required fields
-      if (!email || !username || !password || !displayName || !role) {
-        console.log("Missing fields:", {
-          email,
-          username,
-          password,
-          displayName,
-          role,
-        });
-        return ctx.badRequest(
-          "Missing required fields: email, username, password, displayName, role"
-        );
-      }
+      if (user && user.id) {
+        console.log("User created successfully with ID:", user.id);
+        console.log("User confirmation token:", user.confirmationToken);
 
-      try {
-        // Get role ID from database
-        const roleEntity = await strapi.entityService.findMany(
-          "plugin::users-permissions.role",
-          {
-            filters: {
-              name: role,
-            },
-          }
-        );
-
-        if (!roleEntity || roleEntity.length === 0) {
-          console.log("Role not found:", role);
-          return ctx.badRequest(
-            `Role '${role}' not found. Please create it in Strapi Admin Panel first.`
-          );
-        }
-
-        const roleId = roleEntity[0].id;
-
-        // Create user with role (not confirmed initially)
-        const user = await strapi.plugins[
-          "users-permissions"
-        ].services.user.add({
-          email,
-          username,
-          password,
-          displayName,
-          provider: "local",
-          confirmed: false, // Require email confirmation
-          role: roleId,
-        });
-
-        // Send email confirmation via Namecheap
-        try {
-          // Use Strapi's built-in email confirmation system
-          const confirmationUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/confirm?confirmation=${user.confirmationToken}`;
-
-          // Load email template
-          const fs = require("fs");
-          const path = require("path");
-          const templatePath = path.join(
-            __dirname,
-            "../extensions/users-permissions/email-templates",
-            "email-confirmation.html"
-          );
-          const textTemplatePath = path.join(
-            __dirname,
-            "../extensions/users-permissions/email-templates",
-            "email-confirmation.txt"
-          );
-
-          let htmlTemplate = "";
-          let textTemplate = "";
-
+        // Send email confirmation if user is not confirmed
+        if (!user.confirmed && user.confirmationToken) {
           try {
-            htmlTemplate = fs.readFileSync(templatePath, "utf8");
-            textTemplate = fs.readFileSync(textTemplatePath, "utf8");
-          } catch (templateError) {
-            console.log("Using fallback email template");
-            // Fallback template
-            htmlTemplate = `
-              <!DOCTYPE html>
-              <html>
-              <head><title>Підтвердження email</title></head>
-              <body>
-                <h1>Ласкаво просимо до esviem-defence!</h1>
-                <p>Привіт, <strong>${username}</strong>!</p>
-                <p>Підтвердіть ваш email: <a href="${confirmationUrl}">Підтвердити</a></p>
-                <p>Посилання: ${confirmationUrl}</p>
-              </body>
-              </html>
-            `;
-            textTemplate = `Ласкаво просимо! Підтвердіть email: ${confirmationUrl}`;
+            const confirmationUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/confirm?confirmation=${user.confirmationToken}`;
+
+            console.log("Confirmation URL:", confirmationUrl);
+
+            // Send email using Strapi's email service
+            await strapi.plugins["email"].services.email.send({
+              to: email,
+              from: process.env.EMAIL_FROM || "noreply@example.com",
+              subject: "Підтвердження email адреси",
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #333;">Підтвердження email адреси</h2>
+                  <p>Привіт ${displayName}!</p>
+                  <p>Дякуємо за реєстрацію на нашому сайті. Для завершення реєстрації, будь ласка, натисніть на посилання нижче:</p>
+                  <a href="${confirmationUrl}" style="display: inline-block; background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0;">Підтвердити email</a>
+                  <p>Якщо посилання не працює, скопіюйте та вставте цю адресу в браузер:</p>
+                  <p style="word-break: break-all; color: #666;">${confirmationUrl}</p>
+                  <p>Якщо ви не реєструвалися на нашому сайті, просто проігноруйте це повідомлення.</p>
+                  <p>З повагою,<br>Команда Esviem Defence</p>
+                </div>
+              `,
+            });
+
+            console.log("Email sent successfully to:", email);
+          } catch (emailError) {
+            console.error("Error sending email:", emailError);
+            // Don't fail registration if email fails
           }
-
-          // Replace placeholders
-          const htmlContent = htmlTemplate
-            .replace(/%USERNAME%/g, username)
-            .replace(/%URL%/g, confirmationUrl);
-
-          const textContent = textTemplate
-            .replace(/%USERNAME%/g, username)
-            .replace(/%URL%/g, confirmationUrl);
-
-          await strapi.plugins.email.services.email.send({
-            to: email,
-            subject: "Підтвердження email - esviem-defence",
-            html: htmlContent,
-            text: textContent,
-          });
-
-          console.log("✅ Confirmation email sent via Namecheap to:", email);
-        } catch (emailError) {
-          console.error("❌ Failed to send confirmation email:", emailError);
-          // Don't fail registration if email fails, but log the error
         }
-
-        // Get user with populated data
-        const userWithData = await strapi
-          .query("plugin::users-permissions.user")
-          .findOne({
-            where: { id: user.id },
-            populate: {
-              role: true,
-            },
-          });
-
-        // Don't generate JWT token for unconfirmed users
-        // User needs to confirm email first
-
-        // Remove sensitive data
-        const {
-          password: _,
-          resetPasswordToken: __,
-          confirmationToken: ___,
-          ...userWithoutSensitiveData
-        } = userWithData;
-
-        // Return custom response
-        ctx.body = {
-          message:
-            "Реєстрація успішна! Будь ласка, перевірте вашу email та підтвердіть акаунт.",
-          user: userWithoutSensitiveData,
-        };
-
-        return; // Don't call next() to prevent default registration
-      } catch (error) {
-        console.error("Registration error:", error);
-        return ctx.badRequest(error.message);
       }
     }
-
-    // For all other requests, continue to next middleware
-    await next();
   };
 };
