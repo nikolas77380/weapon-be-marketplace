@@ -59,6 +59,16 @@ const customRoutes = [
       auth: false,
     },
   },
+  {
+    method: "PUT",
+    path: "/users/:id/role",
+    handler: "user.changeUserRole",
+    config: {
+      auth: {
+        scope: ["authenticated"],
+      },
+    },
+  },
 ];
 
 export default {
