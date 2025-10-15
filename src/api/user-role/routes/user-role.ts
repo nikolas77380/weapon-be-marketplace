@@ -5,13 +5,19 @@
 export default {
   routes: [
     {
+      method: "GET",
+      path: "/user-role/test",
+      handler: "user-role.test",
+      config: {
+        auth: false,
+      },
+    },
+    {
       method: "PUT",
       path: "/user-role/:id",
       handler: "user-role.changeUserRole",
       config: {
-        auth: {
-          scope: ["authenticated"],
-        },
+        auth: false,
       },
     },
   ],
