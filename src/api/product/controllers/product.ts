@@ -1337,9 +1337,8 @@ export default factories.createCoreController(
     // Search seller products with Elasticsearch
     async searchSellerProductsElastic(ctx) {
       try {
-        const { query } = ctx;
+        const { query, params } = ctx;
         const {
-          sellerId,
           search = "",
           priceRange,
           tags,
@@ -1351,6 +1350,7 @@ export default factories.createCoreController(
           condition,
           categories,
         } = query;
+        const { sellerId } = params;
 
         const searchQuery = {
           searchTerm: search,
@@ -1407,9 +1407,8 @@ export default factories.createCoreController(
     // Get seller product aggregations
     async getSellerProductAggregations(ctx) {
       try {
-        const { query } = ctx;
+        const { query, params } = ctx;
         const {
-          sellerId,
           priceRange,
           tags,
           status = "published",
@@ -1417,6 +1416,7 @@ export default factories.createCoreController(
           condition,
           categories,
         } = query;
+        const { sellerId } = params;
 
         const searchQuery = {
           sellerId: Number(sellerId),

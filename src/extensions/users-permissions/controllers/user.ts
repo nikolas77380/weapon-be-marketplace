@@ -1,4 +1,42 @@
 export default {
+  async findOne(ctx) {
+    const { id } = ctx.params;
+
+    try {
+      // Get user with populated data including avatar
+      const user = await strapi
+        .query("plugin::users-permissions.user")
+        .findOne({
+          where: { id },
+          populate: {
+            role: true,
+            metadata: {
+              populate: {
+                avatar: true,
+              },
+            },
+          },
+        });
+
+      if (!user) {
+        return ctx.notFound("User not found");
+      }
+
+      // Remove sensitive data
+      const {
+        password: _,
+        resetPasswordToken: __,
+        confirmationToken: ___,
+        ...userWithoutSensitiveData
+      } = user;
+
+      return userWithoutSensitiveData;
+    } catch (error) {
+      console.error("Error in findOne controller:", error);
+      return ctx.internalServerError("Internal server error");
+    }
+  },
+
   async me(ctx) {
     const user = ctx.state.user;
 

@@ -4,6 +4,8 @@ import {
   removeProduct,
   searchProducts,
   getProductAggregations,
+  searchProductsBySeller as searchProductsBySellerUtil,
+  getSellerProductAggregations as getSellerProductAggregationsUtil,
   initializeElasticsearch,
 } from "../../../utils/elasticsearch";
 
@@ -81,6 +83,26 @@ export default factories.createCoreService(
         return await getProductAggregations(query, strapi);
       } catch (error) {
         console.error("Error getting product aggregations:", error);
+        throw error;
+      }
+    },
+
+    // Search products by seller using Elasticsearch
+    async searchProductsBySeller(query: any) {
+      try {
+        return await searchProductsBySellerUtil(query);
+      } catch (error) {
+        console.error("Error searching seller products:", error);
+        throw error;
+      }
+    },
+
+    // Get seller product aggregations
+    async getSellerProductAggregations(query: any) {
+      try {
+        return await getSellerProductAggregationsUtil(query);
+      } catch (error) {
+        console.error("Error getting seller product aggregations:", error);
         throw error;
       }
     },
