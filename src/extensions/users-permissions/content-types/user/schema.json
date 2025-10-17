@@ -112,6 +112,12 @@
       "relation": "oneToMany",
       "target": "api::promo.promo",
       "mappedBy": "userId"
+    },
+    "chats": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::chat.chat",
+      "inversedBy": "participants"
     }
   }
 }
