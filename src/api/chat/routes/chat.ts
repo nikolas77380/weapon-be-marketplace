@@ -40,5 +40,13 @@ export default {
         auth: {},
       },
     },
+    {
+      method: "GET",
+      path: "/chats/stats",
+      handler: "chat-stats.getChatStats",
+      config: {
+        auth: {},
+      },
+    },
   ],
 };
