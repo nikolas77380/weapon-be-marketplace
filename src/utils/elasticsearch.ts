@@ -165,30 +165,47 @@ export const productMapping: any = {
 
 // Initialize Elasticsearch index
 export async function initializeElasticsearch() {
+  console.log(`🔍 Checking Elasticsearch connection and index: ${PRODUCTS_INDEX}`);
+  
   try {
+    // Test connection first
+    const health = await client.cluster.health();
+    console.log(`📊 Elasticsearch cluster health:`, {
+      status: health.status,
+      number_of_nodes: health.number_of_nodes,
+      active_primary_shards: health.active_primary_shards
+    });
+
     // Check if index exists
     const indexExists = await client.indices.exists({
       index: PRODUCTS_INDEX,
     });
 
     if (!indexExists) {
+      console.log(`📝 Creating new Elasticsearch index: ${PRODUCTS_INDEX}`);
       // Create index with mapping
       await client.indices.create({
         index: PRODUCTS_INDEX,
         mappings: productMapping,
       });
-      console.log(`Created Elasticsearch index: ${PRODUCTS_INDEX}`);
+      console.log(`✅ Created Elasticsearch index: ${PRODUCTS_INDEX}`);
     } else {
-      console.log(`Elasticsearch index ${PRODUCTS_INDEX} already exists`);
+      console.log(`✅ Elasticsearch index ${PRODUCTS_INDEX} already exists`);
     }
   } catch (error) {
-    console.error("Error initializing Elasticsearch:", error);
+    console.error("❌ Error initializing Elasticsearch:", {
+      error: error.message,
+      stack: error.stack,
+      index: PRODUCTS_INDEX
+    });
     throw error;
   }
 }
 
 // Index a product in Elasticsearch
 export async function indexProduct(product: any) {
+  console.log(`🔄 Starting to index product ${product.id}: ${product.title}`);
+  
   try {
     const document = {
       id: product.id,
@@ -285,32 +302,61 @@ export async function indexProduct(product: any) {
         : [],
     };
 
-    await client.index({
+    console.log(`📝 Document prepared for product ${product.id}:`, {
+      id: document.id,
+      title: document.title,
+      category: document.category?.name,
+      seller: document.seller?.username,
+      tags: document.tags?.length || 0,
+      images: document.images?.length || 0
+    });
+
+    const result = await client.index({
       index: PRODUCTS_INDEX,
       id: product.id.toString(),
       document: document,
     });
 
-    console.log(`Indexed product ${product.id} in Elasticsearch`);
+    console.log(`✅ Successfully indexed product ${product.id} in Elasticsearch:`, {
+      result: result.result,
+      id: result._id,
+      index: result._index
+    });
   } catch (error) {
-    console.error(`Error indexing product ${product.id}:`, error);
+    console.error(`❌ Failed to index product ${product.id}:`, {
+      error: error.message,
+      stack: error.stack,
+      productId: product.id,
+      productTitle: product.title
+    });
     throw error;
   }
 }
 
 // Remove a product from Elasticsearch
 export async function removeProduct(productId: number) {
+  console.log(`🗑️ Starting to remove product ${productId} from Elasticsearch`);
+  
   try {
-    await client.delete({
+    const result = await client.delete({
       index: PRODUCTS_INDEX,
       id: productId.toString(),
     });
-    console.log(`Removed product ${productId} from Elasticsearch`);
+    
+    console.log(`✅ Successfully removed product ${productId} from Elasticsearch:`, {
+      result: result.result,
+      id: result._id,
+      index: result._index
+    });
   } catch (error) {
     if (error.meta?.statusCode === 404) {
-      console.log(`Product ${productId} not found in Elasticsearch`);
+      console.log(`⚠️ Product ${productId} not found in Elasticsearch (404)`);
     } else {
-      console.error(`Error removing product ${productId}:`, error);
+      console.error(`❌ Failed to remove product ${productId}:`, {
+        error: error.message,
+        statusCode: error.meta?.statusCode,
+        productId: productId
+      });
       throw error;
     }
   }
@@ -318,6 +364,14 @@ export async function removeProduct(productId: number) {
 
 // Search products in Elasticsearch
 export async function searchProducts(query: any, strapi?: any) {
+  console.log(`🔍 Searching products in Elasticsearch:`, {
+    searchTerm: query.searchTerm,
+    categorySlug: query.categorySlug,
+    page: query.page,
+    pageSize: query.pageSize,
+    sort: query.sort
+  });
+  
   try {
     const {
       searchTerm = "",
@@ -467,7 +521,7 @@ export async function searchProducts(query: any, strapi?: any) {
       _source: true,
     });
 
-    return {
+    const result = {
       hits: response.hits.hits.map((hit: any) => hit._source),
       total:
         typeof response.hits.total === "number"
@@ -481,8 +535,18 @@ export async function searchProducts(query: any, strapi?: any) {
           : response.hits.total.value) / pageSize
       ),
     };
+
+    console.log(`✅ Search completed:`, {
+      total: result.total,
+      hits: result.hits.length,
+      page: result.page,
+      pageSize: result.pageSize,
+      pageCount: result.pageCount
+    });
+
+    return result;
   } catch (error) {
-    console.error("Error searching products in Elasticsearch:", error);
+    console.error("❌ Error searching products in Elasticsearch:", error);
     throw error;
   }
 }
