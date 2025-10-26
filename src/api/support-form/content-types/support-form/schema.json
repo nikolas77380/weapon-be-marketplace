@@ -1,0 +1,41 @@
+{
+  "kind": "collectionType",
+  "collectionName": "support_forms",
+  "info": {
+    "singularName": "support-form",
+    "pluralName": "support-forms",
+    "displayName": "Support Form",
+    "description": "Сообщения из формы поддержки"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "maxLength": 255
+    },
+    "email": {
+      "type": "email",
+      "required": true
+    },
+    "message": {
+      "type": "text",
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["new", "in_progress", "resolved"],
+      "default": "new",
+      "required": true
+    },
+    "adminNotes": {
+      "type": "text"
+    },
+    "resolvedAt": {
+      "type": "datetime"
+    }
+  }
+}

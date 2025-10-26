@@ -792,6 +792,46 @@ export interface ApiSellerMetaSellerMeta extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiSupportFormSupportForm extends Struct.CollectionTypeSchema {
+  collectionName: 'support_forms';
+  info: {
+    description: '\u0421\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F \u0438\u0437 \u0444\u043E\u0440\u043C\u044B \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u043A\u0438';
+    displayName: 'Support Form';
+    pluralName: 'support-forms';
+    singularName: 'support-form';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    adminNotes: Schema.Attribute.Text;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    email: Schema.Attribute.Email & Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::support-form.support-form'
+    > &
+      Schema.Attribute.Private;
+    message: Schema.Attribute.Text & Schema.Attribute.Required;
+    name: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMaxLength<{
+        maxLength: 255;
+      }>;
+    publishedAt: Schema.Attribute.DateTime;
+    resolvedAt: Schema.Attribute.DateTime;
+    status: Schema.Attribute.Enumeration<['new', 'in_progress', 'resolved']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'new'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiTagTag extends Struct.CollectionTypeSchema {
   collectionName: 'tags';
   info: {
@@ -1392,6 +1432,7 @@ declare module '@strapi/strapi' {
       'api::product.product': ApiProductProduct;
       'api::promo.promo': ApiPromoPromo;
       'api::seller-meta.seller-meta': ApiSellerMetaSellerMeta;
+      'api::support-form.support-form': ApiSupportFormSupportForm;
       'api::tag.tag': ApiTagTag;
       'api::view.view': ApiViewView;
       'plugin::content-releases.release': PluginContentReleasesRelease;
