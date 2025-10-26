@@ -783,6 +783,12 @@ export interface ApiSellerMetaSellerMeta extends Struct.CollectionTypeSchema {
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     webSite: Schema.Attribute.String;
+    workTimeMonFri: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'09:00-20:00'>;
+    workTimeSaturday: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'10:00-15:00'>;
+    workTimeSunday: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'closed'>;
   };
 }
 

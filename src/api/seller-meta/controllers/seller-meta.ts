@@ -14,6 +14,9 @@ export default factories.createCoreController(
         const populate = {
           sellerEntity: true,
           avatar: true,
+          workTimeMonFri: true,
+          workTimeSaturday: true,
+          workTimeSunday: true,
         };
 
         const page = Number((query.pagination as any)?.page) || 1;
@@ -69,6 +72,9 @@ export default factories.createCoreController(
             populate: {
               sellerEntity: true,
               avatar: true,
+              workTimeMonFri: true,
+              workTimeSaturday: true,
+              workTimeSunday: true,
             },
           }
         );
@@ -97,6 +103,9 @@ export default factories.createCoreController(
             populate: {
               sellerEntity: true,
               avatar: true,
+              workTimeMonFri: true,
+              workTimeSaturday: true,
+              workTimeSunday: true,
             },
           }
         );
@@ -144,6 +153,10 @@ export default factories.createCoreController(
             },
             populate: {
               sellerEntity: true,
+              avatar: true,
+              workTimeMonFri: true,
+              workTimeSaturday: true,
+              workTimeSunday: true,
             },
           }
         );
@@ -172,7 +185,13 @@ export default factories.createCoreController(
             filters: {
               sellerEntity: user.id,
             },
-            populate: "*",
+            populate: {
+              sellerEntity: true,
+              avatar: true,
+              workTimeMonFri: true,
+              workTimeSaturday: true,
+              workTimeSunday: true,
+            },
           }
         );
 
@@ -214,7 +233,13 @@ export default factories.createCoreController(
           "api::seller-meta.seller-meta",
           id,
           {
-            populate: "*",
+            populate: {
+              sellerEntity: true,
+              avatar: true,
+              workTimeMonFri: true,
+              workTimeSaturday: true,
+              workTimeSunday: true,
+            },
           }
         );
 
@@ -257,6 +282,13 @@ export default factories.createCoreController(
           id,
           {
             data: ctx.request.body.data,
+            populate: {
+              sellerEntity: true,
+              avatar: true,
+              workTimeMonFri: true,
+              workTimeSaturday: true,
+              workTimeSunday: true,
+            },
           }
         );
 

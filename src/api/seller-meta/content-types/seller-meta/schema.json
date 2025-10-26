@@ -44,6 +44,18 @@
       "allowedTypes": [
         "images"
       ]
+    },
+    "workTimeMonFri": {
+      "type": "string",
+      "default": "09:00-20:00"
+    },
+    "workTimeSaturday": {
+      "type": "string",
+      "default": "10:00-15:00"
+    },
+    "workTimeSunday": {
+      "type": "string",
+      "default": "closed"
     }
   }
 }
