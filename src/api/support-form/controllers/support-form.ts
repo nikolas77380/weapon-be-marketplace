@@ -3,6 +3,7 @@
  */
 
 import { factories } from "@strapi/strapi";
+import { validateTurnstileToken } from "../../../utils/turnstile";
 
 export default factories.createCoreController(
   "api::support-form.support-form",
@@ -11,17 +12,43 @@ export default factories.createCoreController(
       try {
         console.log("📧 Support email request received:", ctx.request.body);
 
-        const { name, email, message } = ctx.request.body;
+        const { name, email, message, turnstileToken } = ctx.request.body;
 
         // Валидация данных
         if (!name || !email || !message) {
-          return ctx.send({ success: false });
+          return ctx.send({ success: false, error: "Missing required fields" });
         }
 
         // Простая валидация email
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-          return ctx.send({ success: false });
+          return ctx.send({ success: false, error: "Invalid email format" });
+        }
+
+        // Валидация Turnstile токена
+        const turnstileSecretKey = process.env.TURNSTILE_SECRET_KEY;
+        if (!turnstileSecretKey) {
+          console.warn("⚠️ Turnstile secret key not configured");
+        } else {
+          const clientIP = ctx.request.ip;
+          const turnstileValidation = await validateTurnstileToken({
+            token: turnstileToken,
+            secretKey: turnstileSecretKey,
+            remoteip: clientIP,
+          });
+
+          if (!turnstileValidation.success) {
+            console.error(
+              "❌ Turnstile validation failed:",
+              turnstileValidation.error
+            );
+            return ctx.send({
+              success: false,
+              error: "Security verification failed. Please try again.",
+            });
+          }
+
+          console.log("✅ Turnstile validation passed");
         }
 
         console.log("✅ Validation passed");
