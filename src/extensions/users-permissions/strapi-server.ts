@@ -1,11 +1,11 @@
 const strapiServerOverride = (plugin) => {
-  // Temporarily disable custom registration to test standard flow
-  /*
+  // Custom registration controller with Turnstile validation
   plugin.controllers.auth.register = async (ctx) => {
     console.log("=== CUSTOM REGISTER CONTROLLER CALLED ===");
     console.log("Request body:", ctx.request.body);
 
-    const { email, username, password, displayName, role } = ctx.request.body;
+    const { email, username, password, displayName, role, turnstileToken } =
+      ctx.request.body;
 
     // Validate required fields
     if (!email || !username || !password || !displayName || !role) {
@@ -18,6 +18,36 @@ const strapiServerOverride = (plugin) => {
       });
       return ctx.badRequest(
         "Missing required fields: email, username, password, displayName, role"
+      );
+    }
+
+    // Validate Turnstile token
+    const { validateTurnstileToken } = require("../../utils/turnstile");
+    const turnstileSecretKey = process.env.TURNSTILE_SECRET_KEY;
+
+    if (turnstileSecretKey) {
+      const clientIP =
+        ctx.request.ip || (ctx.request as any).connection?.remoteAddress;
+      const turnstileValidation = await validateTurnstileToken({
+        token: turnstileToken,
+        secretKey: turnstileSecretKey,
+        remoteip: clientIP,
+      });
+
+      if (!turnstileValidation.success) {
+        console.error(
+          "❌ Turnstile validation failed:",
+          turnstileValidation.error
+        );
+        return ctx.badRequest(
+          "Security verification failed. Please try again."
+        );
+      }
+
+      console.log("✅ Turnstile validation passed");
+    } else {
+      console.warn(
+        "⚠️ Turnstile secret key not configured, skipping validation"
       );
     }
 
@@ -55,7 +85,9 @@ const strapiServerOverride = (plugin) => {
       // Use Strapi built-in email confirmation - let Strapi handle everything
       try {
         // Send confirmation email using Strapi's built-in method
-        await strapi.plugins["users-permissions"].services.user.sendConfirmationEmail(user, {
+        await strapi.plugins[
+          "users-permissions"
+        ].services.user.sendConfirmationEmail(user, {
           url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/confirm?confirmation=${user.confirmationToken}`,
         });
 
@@ -98,7 +130,6 @@ const strapiServerOverride = (plugin) => {
       return ctx.badRequest(error.message);
     }
   };
-  */
 
   // Override the default callback controller
   plugin.controllers.auth.callback = async (ctx) => {

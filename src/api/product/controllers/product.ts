@@ -278,6 +278,36 @@ export default factories.createCoreController(
           );
         }
 
+        // Validate Turnstile token
+        const { validateTurnstileToken } = require("../../../utils/turnstile");
+        const turnstileSecretKey = process.env.TURNSTILE_SECRET_KEY;
+
+        if (turnstileSecretKey) {
+          const clientIP =
+            ctx.request.ip || (ctx.request as any).connection?.remoteAddress;
+          const turnstileValidation = await validateTurnstileToken({
+            token: ctx.request.body.turnstileToken,
+            secretKey: turnstileSecretKey,
+            remoteip: clientIP,
+          });
+
+          if (!turnstileValidation.success) {
+            console.error(
+              "❌ Turnstile validation failed:",
+              turnstileValidation.error
+            );
+            return ctx.badRequest(
+              "Security verification failed. Please try again."
+            );
+          }
+
+          console.log("✅ Turnstile validation passed");
+        } else {
+          console.warn(
+            "⚠️ Turnstile secret key not configured, skipping validation"
+          );
+        }
+
         let data;
         if (ctx.request.body.data) {
           data =
