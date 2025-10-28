@@ -46,16 +46,13 @@
       ]
     },
     "workTimeMonFri": {
-      "type": "string",
-      "default": "09:00-20:00"
+      "type": "string"
     },
     "workTimeSaturday": {
-      "type": "string",
-      "default": "10:00-15:00"
+      "type": "string"
     },
     "workTimeSunday": {
-      "type": "string",
-      "default": "closed"
+      "type": "string"
     }
   }
 }

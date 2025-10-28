@@ -154,9 +154,6 @@ export default factories.createCoreController(
             populate: {
               sellerEntity: true,
               avatar: true,
-              workTimeMonFri: true,
-              workTimeSaturday: true,
-              workTimeSunday: true,
             },
           }
         );
@@ -236,9 +233,6 @@ export default factories.createCoreController(
             populate: {
               sellerEntity: true,
               avatar: true,
-              workTimeMonFri: true,
-              workTimeSaturday: true,
-              workTimeSunday: true,
             },
           }
         );
@@ -285,9 +279,6 @@ export default factories.createCoreController(
             populate: {
               sellerEntity: true,
               avatar: true,
-              workTimeMonFri: true,
-              workTimeSaturday: true,
-              workTimeSunday: true,
             },
           }
         );
