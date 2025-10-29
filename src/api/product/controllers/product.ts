@@ -433,10 +433,6 @@ export default factories.createCoreController(
           return ctx.badRequest("Category is required");
         }
 
-        if (productData.price === undefined || productData.price < 0) {
-          return ctx.badRequest("Valid price is required");
-        }
-
         // Set default status if not provided
         if (!productData.status) {
           productData.status = "available";
