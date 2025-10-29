@@ -17,7 +17,8 @@ export default {
   async bootstrap({ strapi }) {
     // Initialize Elasticsearch
     try {
-      await strapi.service("api::product.elasticsearch").initialize();
+      const { initializeElasticsearch } = await import("./utils/elasticsearch");
+      await initializeElasticsearch();
       console.log("Elasticsearch initialized successfully");
     } catch (error) {
       console.error("Failed to initialize Elasticsearch:", error);

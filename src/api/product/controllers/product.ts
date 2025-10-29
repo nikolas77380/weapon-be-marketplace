@@ -16,6 +16,7 @@ const getAnonymousUserId = (ctx) => {
   return `anon_${fingerprint}`;
 };
 import { generateUniqueSlug } from "../../../utils/slug";
+import { indexProduct } from "../../../utils/elasticsearch";
 
 // Функция для рекурсивного получения всех дочерних категорий
 const getAllChildCategoryIds = async (strapi, categoryId) => {
@@ -538,9 +539,42 @@ export default factories.createCoreController(
 
         // Index product in Elasticsearch
         try {
-          await strapi
-            .service("api::product.elasticsearch")
-            .indexProduct(product.id);
+          // Use finalProduct which has all populated relations
+          if (finalProduct) {
+            await indexProduct(finalProduct);
+            console.log(
+              `✅ Product ${finalProduct.id} successfully indexed in Elasticsearch from controller`
+            );
+          } else if (product) {
+            // Fallback: fetch product with relations if finalProduct is null
+            const productWithRelations = await strapi.entityService.findOne(
+              "api::product.product",
+              product.id,
+              {
+                populate: {
+                  category: {
+                    populate: {
+                      parent: true,
+                    },
+                  },
+                  tags: true,
+                  seller: {
+                    populate: {
+                      metadata: true,
+                    },
+                  },
+                  images: true,
+                  subcategories: true,
+                },
+              }
+            );
+            if (productWithRelations) {
+              await indexProduct(productWithRelations);
+              console.log(
+                `✅ Product ${productWithRelations.id} successfully indexed in Elasticsearch from controller`
+              );
+            }
+          }
         } catch (elasticError) {
           console.error(
             "Error indexing product in Elasticsearch:",
