@@ -512,79 +512,33 @@ export default factories.createCoreController(
           }
         }
 
-        console.log("Fetching final product with ID:", product.id);
-        const finalProduct = await strapi.entityService.findOne(
-          "api::product.product",
-          product.id,
-          {
-            populate: {
-              category: {
-                populate: {
-                  parent: true,
-                },
-              },
-              tags: true,
-              seller: true,
-              images: true,
-            },
-          }
-        );
-
-        console.log("Final product with images:", finalProduct);
-
-        if (!finalProduct) {
-          console.log("Final product is null, returning created product");
-          return ctx.created(product);
-        }
-
         // Index product in Elasticsearch
         try {
-          // Use finalProduct which has all populated relations
-          if (finalProduct) {
-            await indexProduct(finalProduct);
-            console.log(
-              `✅ Product ${finalProduct.id} successfully indexed in Elasticsearch from controller`
-            );
-          } else if (product) {
-            // Fallback: fetch product with relations if finalProduct is null
-            const productWithRelations = await strapi.entityService.findOne(
-              "api::product.product",
-              product.id,
-              {
-                populate: {
-                  category: {
-                    populate: {
-                      parent: true,
-                    },
-                  },
-                  tags: true,
-                  seller: {
-                    populate: {
-                      metadata: true,
-                    },
-                  },
-                  images: true,
-                  subcategories: true,
-                },
-              }
-            );
-            if (productWithRelations) {
-              await indexProduct(productWithRelations);
-              console.log(
-                `✅ Product ${productWithRelations.id} successfully indexed in Elasticsearch from controller`
-              );
-            }
-          }
-        } catch (elasticError) {
-          console.error(
-            "Error indexing product in Elasticsearch:",
-            elasticError
+          console.log("🔍 Attempting to index product in Elasticsearch...");
+          console.log(`📦 Product data for indexing:`, {
+            id: product.id,
+            title: (product as any).title,
+            category: (product as any).category?.name,
+            seller: (product as any).seller?.id,
+            imagesCount: (product as any).images?.length || 0,
+            tagsCount: (product as any).tags?.length || 0,
+          });
+          await indexProduct(product);
+          console.log(
+            `✅ Product ${product.id} successfully indexed in Elasticsearch from controller`
           );
+        } catch (elasticError: any) {
+          console.error("❌ Error indexing product in Elasticsearch:", {
+            message: elasticError?.message,
+            stack: elasticError?.stack,
+            name: elasticError?.name,
+            meta: elasticError?.meta,
+          });
           // Don't fail the request if Elasticsearch indexing fails
         }
 
         console.log("=== PRODUCT CREATE CONTROLLER SUCCESS ===");
-        return ctx.created(finalProduct);
+        return ctx.created(product);
       } catch (error) {
         console.log("=== PRODUCT CREATE CONTROLLER ERROR ===");
         console.error("Error creating product:", error);
