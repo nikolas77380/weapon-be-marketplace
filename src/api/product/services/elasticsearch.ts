@@ -42,6 +42,7 @@ export default factories.createCoreService(
                 },
               },
               images: true,
+              subcategories: true,
             },
           }
         );

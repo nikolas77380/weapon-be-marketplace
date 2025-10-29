@@ -210,6 +210,12 @@ export async function initializeElasticsearch() {
 // Index a product in Elasticsearch
 export async function indexProduct(product: any) {
   console.log(`🔄 Starting to index product ${product.id}: ${product.title}`);
+  console.log(`💰 Price data:`, {
+    price: product.price,
+    priceUSD: product.priceUSD,
+    priceEUR: product.priceEUR,
+    priceUAH: product.priceUAH,
+  });
 
   try {
     const document = {
@@ -218,11 +224,11 @@ export async function indexProduct(product: any) {
       slug: product.slug,
       sku: product.sku,
       description: product.description,
-      price: product.price,
+      price: product.price ?? 0,
       priceUSD: product.priceUSD ?? product.price ?? 0,
-      priceEUR: product.priceEUR ?? 0,
-      priceUAH: product.priceUAH ?? 0,
-      currency: product.currency,
+      priceEUR: product.priceEUR ?? product.price ?? 0,
+      priceUAH: product.priceUAH ?? product.price ?? 0,
+      currency: product.currency || "USD",
       status: product.status,
       viewsCount: product.viewsCount || 0,
       createdAt: product.createdAt,
@@ -243,6 +249,13 @@ export async function indexProduct(product: any) {
               : null,
           }
         : null,
+      // Simple category fields for filtering
+      categoryId: product.category?.id || null,
+      categoryName: product.category?.name || null,
+      categorySlug: product.category?.slug || null,
+      parentCategoryId: product.category?.parent?.id || null,
+      parentCategoryName: product.category?.parent?.name || null,
+      parentCategorySlug: product.category?.parent?.slug || null,
       tags: product.tags
         ? product.tags.map((tag: any) => ({
             id: tag.id,
@@ -314,6 +327,8 @@ export async function indexProduct(product: any) {
       id: document.id,
       title: document.title,
       category: document.category?.name,
+      categoryId: document.categoryId,
+      categorySlug: document.categorySlug,
       seller: document.seller?.username,
       tags: document.tags?.length || 0,
       images: document.images?.length || 0,
@@ -706,15 +721,32 @@ export async function getProductAggregations(query: any, strapi?: any) {
           },
         },
         price_stats: {
-          stats: {
-            field:
-              currency === "USD"
+          filter: {
+            range: {
+              [currency === "USD"
                 ? "priceUSD"
                 : currency === "EUR"
                   ? "priceEUR"
                   : currency === "UAH"
                     ? "priceUAH"
-                    : "price",
+                    : "price"]: {
+                gt: 0,
+              },
+            },
+          },
+          aggs: {
+            stats: {
+              stats: {
+                field:
+                  currency === "USD"
+                    ? "priceUSD"
+                    : currency === "EUR"
+                      ? "priceEUR"
+                      : currency === "UAH"
+                        ? "priceUAH"
+                        : "price",
+              },
+            },
           },
         },
         price_histogram: {
@@ -758,10 +790,37 @@ export async function getProductAggregations(query: any, strapi?: any) {
       },
     });
 
+    const priceStatsData = (response.aggregations.price_stats as any)?.stats;
+    console.log(`💰 Price stats for currency ${currency}:`, {
+      count: priceStatsData?.count,
+      min: priceStatsData?.min,
+      max: priceStatsData?.max,
+      avg: priceStatsData?.avg,
+      sum: priceStatsData?.sum,
+      raw: response.aggregations.price_stats,
+    });
+
+    // Ensure priceStats has valid min/max values
+    const priceStats = priceStatsData
+      ? {
+          count: priceStatsData.count || 0,
+          min: priceStatsData.min ?? priceStatsData.min_value ?? 0,
+          max: priceStatsData.max ?? priceStatsData.max_value ?? 100000,
+          avg: priceStatsData.avg ?? 0,
+          sum: priceStatsData.sum ?? 0,
+        }
+      : {
+          count: 0,
+          min: 0,
+          max: 100000,
+          avg: 0,
+          sum: 0,
+        };
+
     return {
       categories: (response.aggregations.categories as any).buckets,
       tags: (response.aggregations.tags as any).tag_terms.buckets,
-      priceStats: response.aggregations.price_stats,
+      priceStats: priceStats,
       priceHistogram: (response.aggregations.price_histogram as any).buckets,
       availability: (response.aggregations.availability as any).buckets,
       condition: (response.aggregations.condition as any).buckets,
@@ -1021,15 +1080,32 @@ export async function getSellerProductAggregations(query: any) {
           },
         },
         price_stats: {
-          stats: {
-            field:
-              currency === "USD"
+          filter: {
+            range: {
+              [currency === "USD"
                 ? "priceUSD"
                 : currency === "EUR"
                   ? "priceEUR"
                   : currency === "UAH"
                     ? "priceUAH"
-                    : "price",
+                    : "price"]: {
+                gt: 0,
+              },
+            },
+          },
+          aggs: {
+            stats: {
+              stats: {
+                field:
+                  currency === "USD"
+                    ? "priceUSD"
+                    : currency === "EUR"
+                      ? "priceEUR"
+                      : currency === "UAH"
+                        ? "priceUAH"
+                        : "price",
+              },
+            },
           },
         },
         price_histogram: {
@@ -1073,10 +1149,37 @@ export async function getSellerProductAggregations(query: any) {
       },
     });
 
+    const priceStatsData = (response.aggregations.price_stats as any)?.stats;
+    console.log(`💰 Seller price stats for currency ${currency}:`, {
+      count: priceStatsData?.count,
+      min: priceStatsData?.min,
+      max: priceStatsData?.max,
+      avg: priceStatsData?.avg,
+      sum: priceStatsData?.sum,
+      raw: response.aggregations.price_stats,
+    });
+
+    // Ensure priceStats has valid min/max values
+    const priceStats = priceStatsData
+      ? {
+          count: priceStatsData.count || 0,
+          min: priceStatsData.min ?? priceStatsData.min_value ?? 0,
+          max: priceStatsData.max ?? priceStatsData.max_value ?? 100000,
+          avg: priceStatsData.avg ?? 0,
+          sum: priceStatsData.sum ?? 0,
+        }
+      : {
+          count: 0,
+          min: 0,
+          max: 100000,
+          avg: 0,
+          sum: 0,
+        };
+
     return {
       categories: (response.aggregations.categories as any).buckets,
       tags: (response.aggregations.tags as any).tag_terms.buckets,
-      priceStats: response.aggregations.price_stats,
+      priceStats: priceStats,
       priceHistogram: (response.aggregations.price_histogram as any).buckets,
       availability: (response.aggregations.availability as any).buckets,
       condition: (response.aggregations.condition as any).buckets,
