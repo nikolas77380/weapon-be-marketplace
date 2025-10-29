@@ -70,10 +70,26 @@ export default factories.createCoreController(
                   },
                 },
                 populate: {
-                  sender: true,
+                  sender: {
+                    populate: {
+                      metadata: {
+                        populate: {
+                          avatar: true,
+                        },
+                      },
+                    },
+                  },
                   chat: {
                     populate: {
-                      participants: true,
+                      participants: {
+                        populate: {
+                          metadata: {
+                            populate: {
+                              avatar: true,
+                            },
+                          },
+                        },
+                      },
                     },
                   },
                 },

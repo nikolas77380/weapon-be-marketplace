@@ -49,8 +49,24 @@ export default factories.createCoreController(
             chat: id,
           },
           populate: {
-            sender: true,
-            readBy: true,
+            sender: {
+              populate: {
+                metadata: {
+                  populate: {
+                    avatar: true,
+                  },
+                },
+              },
+            },
+            readBy: {
+              populate: {
+                metadata: {
+                  populate: {
+                    avatar: true,
+                  },
+                },
+              },
+            },
           },
           sort: { createdAt: "asc" },
         }
@@ -59,7 +75,7 @@ export default factories.createCoreController(
       return { data: messages };
     },
 
-    // Создание нового чата
+    // Создание нового чата или возврат существующего
     async create(ctx) {
       const { topic, participantIds } = ctx.request.body;
       const { user } = ctx.state;
@@ -75,18 +91,66 @@ export default factories.createCoreController(
       // Добавляем текущего пользователя к участникам
       const allParticipants = [...participantIds, user.id];
 
-      const chat = await strapi.entityService.create("api::chat.chat", {
-        data: {
-          topic,
-          participants: { connect: allParticipants } as any,
-          status: "active",
-        },
-        populate: {
-          participants: true,
-        },
-      });
+      try {
+        // Сначала ищем существующий чат между участниками
+        const existingChats = await strapi.entityService.findMany(
+          "api::chat.chat",
+          {
+            filters: {
+              participants: {
+                id: {
+                  $in: allParticipants,
+                },
+              },
+              status: "active",
+            },
+            populate: {
+              participants: true,
+            },
+          }
+        );
 
-      return { data: chat };
+        // Фильтруем чаты, которые содержат всех участников
+        const validChats = existingChats.filter((chat) => {
+          const participantIds = (chat as any).participants.map(
+            (p: any) => p.id
+          );
+          return (
+            allParticipants.every((id) => participantIds.includes(id)) &&
+            participantIds.length === allParticipants.length
+          );
+        });
+
+        // Если указан topic, ищем чат с таким же топиком
+        if (validChats.length > 0) {
+          const chatWithSameTopic = validChats.find(
+            (chat) => chat.topic === topic
+          );
+          if (chatWithSameTopic) {
+            return { data: chatWithSameTopic };
+          }
+
+          // Если есть чат с этими участниками, но другим топиком, возвращаем его
+          return { data: validChats[0] };
+        }
+
+        // Если чат не найден, создаем новый
+        const chat = await strapi.entityService.create("api::chat.chat", {
+          data: {
+            topic,
+            participants: { connect: allParticipants } as any,
+            status: "active",
+          },
+          populate: {
+            participants: true,
+          },
+        });
+
+        return { data: chat };
+      } catch (error) {
+        console.error("Error creating/finding chat:", error);
+        return ctx.internalServerError("Failed to create/find chat");
+      }
     },
 
     // Завершение чата
@@ -113,7 +177,15 @@ export default factories.createCoreController(
 
       const chat = await strapi.entityService.findOne("api::chat.chat", id, {
         populate: {
-          participants: true,
+          participants: {
+            populate: {
+              metadata: {
+                populate: {
+                  avatar: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -159,7 +231,15 @@ export default factories.createCoreController(
           },
         },
         populate: {
-          participants: true,
+          participants: {
+            populate: {
+              metadata: {
+                populate: {
+                  avatar: true,
+                },
+              },
+            },
+          },
         },
       });
 

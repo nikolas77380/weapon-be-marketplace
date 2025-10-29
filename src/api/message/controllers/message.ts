@@ -54,7 +54,15 @@ export default factories.createCoreController(
             isRead: false,
           },
           populate: {
-            sender: true,
+            sender: {
+              populate: {
+                metadata: {
+                  populate: {
+                    avatar: true,
+                  },
+                },
+              },
+            },
             chat: true,
           },
         }
@@ -102,8 +110,24 @@ export default factories.createCoreController(
             chat: chatId,
           },
           populate: {
-            sender: true,
-            readBy: true,
+            sender: {
+              populate: {
+                metadata: {
+                  populate: {
+                    avatar: true,
+                  },
+                },
+              },
+            },
+            readBy: {
+              populate: {
+                metadata: {
+                  populate: {
+                    avatar: true,
+                  },
+                },
+              },
+            },
           },
           sort: { createdAt: "asc" },
         }
@@ -227,8 +251,24 @@ export default factories.createCoreController(
               isRead: true,
             },
             populate: {
-              sender: true,
-              readBy: true,
+              sender: {
+                populate: {
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
+                  },
+                },
+              },
+              readBy: {
+                populate: {
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
+                  },
+                },
+              },
             },
           }
         );
