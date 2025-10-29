@@ -669,7 +669,6 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    currency: Schema.Attribute.String & Schema.Attribute.DefaultTo<'USD'>;
     description: Schema.Attribute.RichText;
     favourites: Schema.Attribute.Relation<
       'oneToMany',
@@ -683,7 +682,23 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     orders: Schema.Attribute.Relation<'oneToMany', 'api::order.order'>;
-    price: Schema.Attribute.Decimal &
+    priceEUR: Schema.Attribute.Decimal &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    priceUAH: Schema.Attribute.Decimal &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    priceUSD: Schema.Attribute.Decimal &
       Schema.Attribute.SetMinMax<
         {
           min: 0;

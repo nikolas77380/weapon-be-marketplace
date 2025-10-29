@@ -73,6 +73,7 @@ export default factories.createCoreController(
         const {
           search = "",
           priceRange,
+          currency = "USD",
           tags,
           status = "published",
           sort = "createdAt:desc",
@@ -87,6 +88,7 @@ export default factories.createCoreController(
           searchTerm: search,
           categorySlug: slug,
           priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
+          currency: currency as string,
           tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
           status,
           sort,
@@ -140,6 +142,7 @@ export default factories.createCoreController(
 
         const {
           priceRange,
+          currency = "USD",
           tags,
           status = "published",
           availability,
@@ -150,6 +153,7 @@ export default factories.createCoreController(
         const searchQuery = {
           categorySlug: slug,
           priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
+          currency: currency as string,
           tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
           status,
           availability: availability

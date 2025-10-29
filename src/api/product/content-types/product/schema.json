@@ -28,14 +28,20 @@
     "description": {
       "type": "richtext"
     },
-    "price": {
+    "priceUSD": {
       "type": "decimal",
       "default": 0,
       "min": 0
     },
-    "currency": {
-      "type": "string",
-      "default": "USD"
+    "priceEUR": {
+      "type": "decimal",
+      "default": 0,
+      "min": 0
+    },
+    "priceUAH": {
+      "type": "decimal",
+      "default": 0,
+      "min": 0
     },
     "category": {
       "type": "relation",

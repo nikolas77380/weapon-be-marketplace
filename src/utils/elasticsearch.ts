@@ -54,6 +54,9 @@ export const productMapping: any = {
       analyzer: "standard",
     },
     price: { type: "float" },
+    priceUSD: { type: "float" },
+    priceEUR: { type: "float" },
+    priceUAH: { type: "float" },
     currency: { type: "keyword" },
     status: { type: "keyword" },
     viewsCount: { type: "integer" },
@@ -165,15 +168,17 @@ export const productMapping: any = {
 
 // Initialize Elasticsearch index
 export async function initializeElasticsearch() {
-  console.log(`🔍 Checking Elasticsearch connection and index: ${PRODUCTS_INDEX}`);
-  
+  console.log(
+    `🔍 Checking Elasticsearch connection and index: ${PRODUCTS_INDEX}`
+  );
+
   try {
     // Test connection first
     const health = await client.cluster.health();
     console.log(`📊 Elasticsearch cluster health:`, {
       status: health.status,
       number_of_nodes: health.number_of_nodes,
-      active_primary_shards: health.active_primary_shards
+      active_primary_shards: health.active_primary_shards,
     });
 
     // Check if index exists
@@ -196,7 +201,7 @@ export async function initializeElasticsearch() {
     console.error("❌ Error initializing Elasticsearch:", {
       error: error.message,
       stack: error.stack,
-      index: PRODUCTS_INDEX
+      index: PRODUCTS_INDEX,
     });
     throw error;
   }
@@ -205,7 +210,7 @@ export async function initializeElasticsearch() {
 // Index a product in Elasticsearch
 export async function indexProduct(product: any) {
   console.log(`🔄 Starting to index product ${product.id}: ${product.title}`);
-  
+
   try {
     const document = {
       id: product.id,
@@ -214,6 +219,9 @@ export async function indexProduct(product: any) {
       sku: product.sku,
       description: product.description,
       price: product.price,
+      priceUSD: product.priceUSD ?? product.price ?? 0,
+      priceEUR: product.priceEUR ?? 0,
+      priceUAH: product.priceUAH ?? 0,
       currency: product.currency,
       status: product.status,
       viewsCount: product.viewsCount || 0,
@@ -308,7 +316,7 @@ export async function indexProduct(product: any) {
       category: document.category?.name,
       seller: document.seller?.username,
       tags: document.tags?.length || 0,
-      images: document.images?.length || 0
+      images: document.images?.length || 0,
     });
 
     const result = await client.index({
@@ -317,17 +325,20 @@ export async function indexProduct(product: any) {
       document: document,
     });
 
-    console.log(`✅ Successfully indexed product ${product.id} in Elasticsearch:`, {
-      result: result.result,
-      id: result._id,
-      index: result._index
-    });
+    console.log(
+      `✅ Successfully indexed product ${product.id} in Elasticsearch:`,
+      {
+        result: result.result,
+        id: result._id,
+        index: result._index,
+      }
+    );
   } catch (error) {
     console.error(`❌ Failed to index product ${product.id}:`, {
       error: error.message,
       stack: error.stack,
       productId: product.id,
-      productTitle: product.title
+      productTitle: product.title,
     });
     throw error;
   }
@@ -336,18 +347,21 @@ export async function indexProduct(product: any) {
 // Remove a product from Elasticsearch
 export async function removeProduct(productId: number) {
   console.log(`🗑️ Starting to remove product ${productId} from Elasticsearch`);
-  
+
   try {
     const result = await client.delete({
       index: PRODUCTS_INDEX,
       id: productId.toString(),
     });
-    
-    console.log(`✅ Successfully removed product ${productId} from Elasticsearch:`, {
-      result: result.result,
-      id: result._id,
-      index: result._index
-    });
+
+    console.log(
+      `✅ Successfully removed product ${productId} from Elasticsearch:`,
+      {
+        result: result.result,
+        id: result._id,
+        index: result._index,
+      }
+    );
   } catch (error) {
     if (error.meta?.statusCode === 404) {
       console.log(`⚠️ Product ${productId} not found in Elasticsearch (404)`);
@@ -355,7 +369,7 @@ export async function removeProduct(productId: number) {
       console.error(`❌ Failed to remove product ${productId}:`, {
         error: error.message,
         statusCode: error.meta?.statusCode,
-        productId: productId
+        productId: productId,
       });
       throw error;
     }
@@ -369,14 +383,15 @@ export async function searchProducts(query: any, strapi?: any) {
     categorySlug: query.categorySlug,
     page: query.page,
     pageSize: query.pageSize,
-    sort: query.sort
+    sort: query.sort,
   });
-  
+
   try {
     const {
       searchTerm = "",
       categorySlug,
       priceRange,
+      currency = "USD",
       tags,
       status = "published",
       sort = "createdAt:desc",
@@ -438,12 +453,22 @@ export async function searchProducts(query: any, strapi?: any) {
 
     // Add price range filter
     if (priceRange) {
-      const priceFilter: any = { range: { price: {} } };
+      // Determine which price field to use based on currency
+      const priceField =
+        currency === "USD"
+          ? "priceUSD"
+          : currency === "EUR"
+            ? "priceEUR"
+            : currency === "UAH"
+              ? "priceUAH"
+              : "price";
+
+      const priceFilter: any = { range: { [priceField]: {} } };
       if (priceRange.min !== undefined) {
-        priceFilter.range.price.gte = priceRange.min;
+        priceFilter.range[priceField].gte = priceRange.min;
       }
       if (priceRange.max !== undefined) {
-        priceFilter.range.price.lte = priceRange.max;
+        priceFilter.range[priceField].lte = priceRange.max;
       }
       searchQuery.bool.must.push(priceFilter);
     }
@@ -506,6 +531,16 @@ export async function searchProducts(query: any, strapi?: any) {
         sortField = "availability";
       } else if (field === "condition") {
         sortField = "condition";
+      } else if (field === "price") {
+        // Use currency-specific price field for sorting
+        sortField =
+          currency === "USD"
+            ? "priceUSD"
+            : currency === "EUR"
+              ? "priceEUR"
+              : currency === "UAH"
+                ? "priceUAH"
+                : "price";
       }
 
       sortArray.push({ [sortField]: order });
@@ -541,7 +576,7 @@ export async function searchProducts(query: any, strapi?: any) {
       hits: result.hits.length,
       page: result.page,
       pageSize: result.pageSize,
-      pageCount: result.pageCount
+      pageCount: result.pageCount,
     });
 
     return result;
@@ -557,6 +592,7 @@ export async function getProductAggregations(query: any, strapi?: any) {
     const {
       categorySlug,
       priceRange,
+      currency = "USD",
       tags,
       status = "published",
       availability,
@@ -671,12 +707,26 @@ export async function getProductAggregations(query: any, strapi?: any) {
         },
         price_stats: {
           stats: {
-            field: "price",
+            field:
+              currency === "USD"
+                ? "priceUSD"
+                : currency === "EUR"
+                  ? "priceEUR"
+                  : currency === "UAH"
+                    ? "priceUAH"
+                    : "price",
           },
         },
         price_histogram: {
           histogram: {
-            field: "price",
+            field:
+              currency === "USD"
+                ? "priceUSD"
+                : currency === "EUR"
+                  ? "priceEUR"
+                  : currency === "UAH"
+                    ? "priceUAH"
+                    : "price",
             interval: 100,
           },
         },
@@ -731,6 +781,7 @@ export async function searchProductsBySeller(query: any) {
       searchTerm = "",
       sellerId,
       priceRange,
+      currency = "USD",
       tags,
       status = "available",
       sort = "createdAt:desc",
@@ -766,12 +817,22 @@ export async function searchProductsBySeller(query: any) {
 
     // Add price range filter
     if (priceRange) {
-      const priceFilter: any = { range: { price: {} } };
+      // Determine which price field to use based on currency
+      const priceField =
+        currency === "USD"
+          ? "priceUSD"
+          : currency === "EUR"
+            ? "priceEUR"
+            : currency === "UAH"
+              ? "priceUAH"
+              : "price";
+
+      const priceFilter: any = { range: { [priceField]: {} } };
       if (priceRange.min !== undefined) {
-        priceFilter.range.price.gte = priceRange.min;
+        priceFilter.range[priceField].gte = priceRange.min;
       }
       if (priceRange.max !== undefined) {
-        priceFilter.range.price.lte = priceRange.max;
+        priceFilter.range[priceField].lte = priceRange.max;
       }
       searchQuery.bool.must.push(priceFilter);
     }
@@ -834,6 +895,16 @@ export async function searchProductsBySeller(query: any) {
         sortField = "availability";
       } else if (field === "condition") {
         sortField = "condition";
+      } else if (field === "price") {
+        // Use currency-specific price field for sorting
+        sortField =
+          currency === "USD"
+            ? "priceUSD"
+            : currency === "EUR"
+              ? "priceEUR"
+              : currency === "UAH"
+                ? "priceUAH"
+                : "price";
       }
 
       sortArray.push({ [sortField]: order });
@@ -878,6 +949,7 @@ export async function getSellerProductAggregations(query: any) {
     const {
       sellerId,
       priceRange,
+      currency = "USD",
       tags,
       status = "published",
       availability,
@@ -950,12 +1022,26 @@ export async function getSellerProductAggregations(query: any) {
         },
         price_stats: {
           stats: {
-            field: "price",
+            field:
+              currency === "USD"
+                ? "priceUSD"
+                : currency === "EUR"
+                  ? "priceEUR"
+                  : currency === "UAH"
+                    ? "priceUAH"
+                    : "price",
           },
         },
         price_histogram: {
           histogram: {
-            field: "price",
+            field:
+              currency === "USD"
+                ? "priceUSD"
+                : currency === "EUR"
+                  ? "priceEUR"
+                  : currency === "UAH"
+                    ? "priceUAH"
+                    : "price",
             interval: 100,
           },
         },
