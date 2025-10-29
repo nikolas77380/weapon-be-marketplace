@@ -1,4 +1,5 @@
 import { factories } from "@strapi/strapi";
+import { sendChatMessageNotification } from "../../../utils/email-notifications";
 
 export default factories.createCoreController(
   "api::message.message",
@@ -23,7 +24,11 @@ export default factories.createCoreController(
         chatId,
         {
           populate: {
-            participants: true,
+            participants: {
+              populate: {
+                metadata: true,
+              },
+            },
           },
         }
       );
@@ -67,6 +72,40 @@ export default factories.createCoreController(
           },
         }
       );
+
+      // Отправляем email уведомления всем участникам чата кроме отправителя
+      try {
+        const participants = (chat as any).participants || [];
+        const senderName = user.displayName || user.username || "Користувач";
+        const chatTopic = (chat as any).topic || "Чат";
+
+        // Отправляем email каждому участнику, кроме отправителя
+        const emailPromises = participants
+          .filter((participant: any) => participant.id !== user?.id)
+          .map(async (participant: any) => {
+            if (participant.email) {
+              await sendChatMessageNotification(
+                strapi,
+                participant.email,
+                senderName,
+                chatTopic,
+                text,
+                chatId
+              );
+            }
+          });
+
+        // Выполняем отправку email асинхронно, не блокируя ответ
+        Promise.all(emailPromises).catch((error) => {
+          console.error("❌ Error sending chat message notifications:", error);
+        });
+      } catch (emailError) {
+        // Логируем ошибку, но не прерываем отправку сообщения
+        console.error(
+          "❌ Failed to send chat message notifications:",
+          emailError
+        );
+      }
 
       return { data: message };
     },
