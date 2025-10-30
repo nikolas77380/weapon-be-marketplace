@@ -5,30 +5,24 @@ import {
 } from "./category-search";
 
 // Elasticsearch client configuration
-// For production: use API key authentication
-// For local development: use username/password authentication
+// Prefer API key auth whenever provided; otherwise fall back to basic auth
 const createElasticsearchClient = () => {
   const node = process.env.ELASTICSEARCH_URL || "http://localhost:9200";
-  const isProduction = process.env.NODE_ENV === "production";
 
-  if (isProduction && process.env.ELASTICSEARCH_API_KEY) {
-    // Production configuration with API key
+  if (process.env.ELASTICSEARCH_API_KEY) {
     return new Client({
-      node: node,
-      auth: {
-        apiKey: process.env.ELASTICSEARCH_API_KEY,
-      },
-    });
-  } else {
-    // Local development configuration with username/password
-    return new Client({
-      node: node,
-      auth: {
-        username: process.env.ELASTICSEARCH_USERNAME || "elastic",
-        password: process.env.ELASTICSEARCH_PASSWORD || "changeme",
-      },
+      node,
+      auth: { apiKey: process.env.ELASTICSEARCH_API_KEY },
     });
   }
+
+  return new Client({
+    node,
+    auth: {
+      username: process.env.ELASTICSEARCH_USERNAME || "elastic",
+      password: process.env.ELASTICSEARCH_PASSWORD || "changeme",
+    },
+  });
 };
 
 const client = createElasticsearchClient();
@@ -407,7 +401,7 @@ export async function searchProducts(query: any, strapi?: any) {
       searchTerm = "",
       categorySlug,
       priceRange,
-      currency = "USD",
+      currency, // optional; when omitted we won't hard-filter by currency
       tags,
       status = "published",
       sort = "createdAt:desc",
@@ -425,9 +419,7 @@ export async function searchProducts(query: any, strapi?: any) {
       },
     };
 
-    // Enforce public status filter: only show available products (global),
-    // except for seller-specific endpoints handled separately
-    searchQuery.bool.must.push({ terms: { status: ["available"] } });
+    // No status filtering (return all statuses)
 
     // Add text search
     if (searchTerm && searchTerm.trim()) {
@@ -481,7 +473,7 @@ export async function searchProducts(query: any, strapi?: any) {
             ? "priceEUR"
             : currency === "UAH"
               ? "priceUAH"
-              : "price";
+              : "price"; // legacy fallback when currency is not provided
 
       const priceFilter: any = { range: { [priceField]: {} } };
       if (priceRange.min !== undefined) {
@@ -493,10 +485,7 @@ export async function searchProducts(query: any, strapi?: any) {
       searchQuery.bool.must.push(priceFilter);
     }
 
-    // Filter by currency type of the product (no legacy fallback)
-    if (currency) {
-      searchQuery.bool.must.push({ terms: { currency: [currency] } });
-    }
+    // Do not filter by currency; use it only to select price field
 
     // Add tags filter
     if (tags && tags.length > 0) {
@@ -664,8 +653,7 @@ export async function getProductAggregations(query: any, strapi?: any) {
       }
     }
 
-    // Enforce public status filter for aggregations too (except seller paths)
-    searchQuery.bool.must.push({ terms: { status: ["available"] } });
+    // No status filtering for aggregations
 
     // Add availability filter
     if (availability && availability.length > 0) {
@@ -748,16 +736,6 @@ export async function getProductAggregations(query: any, strapi?: any) {
           filter: { range: { priceUAH: { gt: 0 } } },
           aggs: { stats: { stats: { field: "priceUAH" } } },
         },
-        // Histograms per currency (client can pick needed one); keep reasonable interval
-        price_histogram_usd: {
-          histogram: { field: "priceUSD", interval: 100 },
-        },
-        price_histogram_eur: {
-          histogram: { field: "priceEUR", interval: 100 },
-        },
-        price_histogram_uah: {
-          histogram: { field: "priceUAH", interval: 100 },
-        },
         availability: {
           terms: {
             field: "availability",
@@ -819,11 +797,6 @@ export async function getProductAggregations(query: any, strapi?: any) {
         sum: 0,
       },
       priceStatsByCurrency,
-      priceHistogramByCurrency: {
-        USD: (response.aggregations.price_histogram_usd as any)?.buckets || [],
-        EUR: (response.aggregations.price_histogram_eur as any)?.buckets || [],
-        UAH: (response.aggregations.price_histogram_uah as any)?.buckets || [],
-      },
       availability: (response.aggregations.availability as any).buckets,
       condition: (response.aggregations.condition as any).buckets,
       subcategories: (response.aggregations.subcategories as any)
@@ -1081,48 +1054,7 @@ export async function getSellerProductAggregations(query: any) {
             },
           },
         },
-        price_stats: {
-          filter: {
-            range: {
-              [currency === "USD"
-                ? "priceUSD"
-                : currency === "EUR"
-                  ? "priceEUR"
-                  : currency === "UAH"
-                    ? "priceUAH"
-                    : "price"]: {
-                gt: 0,
-              },
-            },
-          },
-          aggs: {
-            stats: {
-              stats: {
-                field:
-                  currency === "USD"
-                    ? "priceUSD"
-                    : currency === "EUR"
-                      ? "priceEUR"
-                      : currency === "UAH"
-                        ? "priceUAH"
-                        : "price",
-              },
-            },
-          },
-        },
-        price_histogram: {
-          histogram: {
-            field:
-              currency === "USD"
-                ? "priceUSD"
-                : currency === "EUR"
-                  ? "priceEUR"
-                  : currency === "UAH"
-                    ? "priceUAH"
-                    : "price",
-            interval: 100,
-          },
-        },
+        // Keep only non-histogram aggregations for seller view
         availability: {
           terms: {
             field: "availability",
@@ -1182,7 +1114,6 @@ export async function getSellerProductAggregations(query: any) {
       categories: (response.aggregations.categories as any).buckets,
       tags: (response.aggregations.tags as any).tag_terms.buckets,
       priceStats: priceStats,
-      priceHistogram: (response.aggregations.price_histogram as any).buckets,
       availability: (response.aggregations.availability as any).buckets,
       condition: (response.aggregations.condition as any).buckets,
       subcategories: (response.aggregations.subcategories as any)

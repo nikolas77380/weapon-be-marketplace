@@ -65,6 +65,11 @@ export default factories.createCoreController(
 
         const filters = { ...(query.filters as any) };
 
+        // Enforce public status filter: only available products on public listing
+        if (!filters.status) {
+          (filters as any).status = { $eq: "available" };
+        }
+
         // Handle category slug filter
         if ((query.filters as any)?.categorySlug) {
           const categorySlug = (query.filters as any).categorySlug;
@@ -1101,6 +1106,9 @@ export default factories.createCoreController(
           ],
         };
 
+        // Enforce public status filter: only available products for public search
+        (filters as any).status = { $eq: "available" };
+
         // Добавляем дополнительные фильтры если они есть
         if ((query.filters as any)?.categorySlug) {
           const categorySlug = (query.filters as any).categorySlug;
@@ -1222,14 +1230,24 @@ export default factories.createCoreController(
     async getAggregations(ctx) {
       try {
         const { query } = ctx;
-        const { categorySlug, priceRange, tags, status = "available" } = query;
+        const {
+          categorySlug,
+          priceRange,
+          tags,
+          status = "available",
+          currency,
+        } = query;
 
-        const searchQuery = {
+        const searchQuery: any = {
           categorySlug,
           priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
           tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
           status,
         };
+
+        if (currency) {
+          searchQuery.currency = currency as string;
+        }
 
         const aggregations = await strapi
           .service("api::product.elasticsearch")
@@ -1296,14 +1314,24 @@ export default factories.createCoreController(
     async getAggregationsPublic(ctx) {
       try {
         const { query } = ctx;
-        const { categorySlug, priceRange, tags, status = "available" } = query;
+        const {
+          categorySlug,
+          priceRange,
+          tags,
+          status = "available",
+          currency,
+        } = query;
 
-        const searchQuery = {
+        const searchQuery: any = {
           categorySlug,
           priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
           tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
           status,
         };
+
+        if (currency) {
+          searchQuery.currency = currency as string;
+        }
 
         const aggregations = await strapi
           .service("api::product.elasticsearch")

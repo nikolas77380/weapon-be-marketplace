@@ -73,9 +73,9 @@ export default factories.createCoreController(
         const {
           search = "",
           priceRange,
-          currency = "USD",
+          currency, // optional, only pass when provided
           tags,
-          status = "published",
+          status, // optional, no default
           sort = "createdAt:desc",
           page = 1,
           pageSize = 10,
@@ -84,11 +84,10 @@ export default factories.createCoreController(
           categories,
         } = query;
 
-        const searchQuery = {
+        const searchQuery: any = {
           searchTerm: search,
           categorySlug: slug,
           priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
-          currency: currency as string,
           tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
           status,
           sort,
@@ -110,6 +109,13 @@ export default factories.createCoreController(
               : [categories]
             : undefined,
         };
+
+        if (currency) {
+          searchQuery.currency = currency as string;
+        }
+        if (status) {
+          searchQuery.status = status as string | string[];
+        }
 
         const result = await strapi
           .service("api::product.elasticsearch")
@@ -142,18 +148,17 @@ export default factories.createCoreController(
 
         const {
           priceRange,
-          currency = "USD",
+          currency, // optional
           tags,
-          status = "published",
+          status, // optional, no default
           availability,
           condition,
           categories,
         } = query;
 
-        const searchQuery = {
+        const searchQuery: any = {
           categorySlug: slug,
           priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
-          currency: currency as string,
           tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
           status,
           availability: availability
@@ -172,6 +177,13 @@ export default factories.createCoreController(
               : [categories]
             : undefined,
         };
+
+        if (currency) {
+          searchQuery.currency = currency as string;
+        }
+        if (status) {
+          searchQuery.status = status as string | string[];
+        }
 
         const aggregations = await strapi
           .service("api::product.elasticsearch")
