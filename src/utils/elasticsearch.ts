@@ -425,6 +425,10 @@ export async function searchProducts(query: any, strapi?: any) {
       },
     };
 
+    // Enforce public status filter: only show available products (global),
+    // except for seller-specific endpoints handled separately
+    searchQuery.bool.must.push({ terms: { status: ["available"] } });
+
     // Add text search
     if (searchTerm && searchTerm.trim()) {
       searchQuery.bool.must.push({
@@ -659,6 +663,9 @@ export async function getProductAggregations(query: any, strapi?: any) {
         // Continue without category filter if there's an error
       }
     }
+
+    // Enforce public status filter for aggregations too (except seller paths)
+    searchQuery.bool.must.push({ terms: { status: ["available"] } });
 
     // Add availability filter
     if (availability && availability.length > 0) {
