@@ -49,7 +49,12 @@ const productMapping = {
       type: "text",
       analyzer: "standard",
     },
+    // Legacy price (not used for logic now)
     price: { type: "float" },
+    // Currency-specific prices
+    priceUSD: { type: "float" },
+    priceEUR: { type: "float" },
+    priceUAH: { type: "float" },
     currency: { type: "keyword" },
     status: { type: "keyword" },
     viewsCount: { type: "integer" },
@@ -245,8 +250,12 @@ async function syncProductsBulk() {
             slug: product.slug,
             sku: product.sku,
             description: product.description,
-            price: product.price,
-            currency: product.currency,
+            // Keep legacy price for backward compatibility, but use currency-specific for logic
+            price: product.price ?? 0,
+            priceUSD: product.priceUSD ?? 0,
+            priceEUR: product.priceEUR ?? 0,
+            priceUAH: product.priceUAH ?? 0,
+            currency: product.currency || "USD",
             status: product.status,
             viewsCount: product.viewsCount || 0,
             createdAt: product.createdAt,
