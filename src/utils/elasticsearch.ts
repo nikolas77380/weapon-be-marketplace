@@ -224,10 +224,11 @@ export async function indexProduct(product: any) {
       slug: product.slug,
       sku: product.sku,
       description: product.description,
+      // Keep legacy price for backward compatibility in index, but do not use as fallback
       price: product.price ?? 0,
-      priceUSD: product.priceUSD ?? product.price ?? 0,
-      priceEUR: product.priceEUR ?? product.price ?? 0,
-      priceUAH: product.priceUAH ?? product.price ?? 0,
+      priceUSD: product.priceUSD ?? 0,
+      priceEUR: product.priceEUR ?? 0,
+      priceUAH: product.priceUAH ?? 0,
       currency: product.currency || "USD",
       status: product.status,
       viewsCount: product.viewsCount || 0,
@@ -488,6 +489,11 @@ export async function searchProducts(query: any, strapi?: any) {
       searchQuery.bool.must.push(priceFilter);
     }
 
+    // Filter by currency type of the product (no legacy fallback)
+    if (currency) {
+      searchQuery.bool.must.push({ terms: { currency: [currency] } });
+    }
+
     // Add tags filter
     if (tags && tags.length > 0) {
       searchQuery.bool.must.push({
@@ -682,6 +688,8 @@ export async function getProductAggregations(query: any, strapi?: any) {
       });
     }
 
+    // Do NOT filter by currency for aggregations; return all currencies
+
     // Note: We don't apply priceRange filter to aggregations query
     // because we want to show the full price range for the category
     // The priceRange filter should only be applied to the main search query
@@ -720,47 +728,28 @@ export async function getProductAggregations(query: any, strapi?: any) {
             },
           },
         },
-        price_stats: {
-          filter: {
-            range: {
-              [currency === "USD"
-                ? "priceUSD"
-                : currency === "EUR"
-                  ? "priceEUR"
-                  : currency === "UAH"
-                    ? "priceUAH"
-                    : "price"]: {
-                gt: 0,
-              },
-            },
-          },
-          aggs: {
-            stats: {
-              stats: {
-                field:
-                  currency === "USD"
-                    ? "priceUSD"
-                    : currency === "EUR"
-                      ? "priceEUR"
-                      : currency === "UAH"
-                        ? "priceUAH"
-                        : "price",
-              },
-            },
-          },
+        // Stats for all currencies in parallel
+        price_stats_usd: {
+          filter: { range: { priceUSD: { gt: 0 } } },
+          aggs: { stats: { stats: { field: "priceUSD" } } },
         },
-        price_histogram: {
-          histogram: {
-            field:
-              currency === "USD"
-                ? "priceUSD"
-                : currency === "EUR"
-                  ? "priceEUR"
-                  : currency === "UAH"
-                    ? "priceUAH"
-                    : "price",
-            interval: 100,
-          },
+        price_stats_eur: {
+          filter: { range: { priceEUR: { gt: 0 } } },
+          aggs: { stats: { stats: { field: "priceEUR" } } },
+        },
+        price_stats_uah: {
+          filter: { range: { priceUAH: { gt: 0 } } },
+          aggs: { stats: { stats: { field: "priceUAH" } } },
+        },
+        // Histograms per currency (client can pick needed one); keep reasonable interval
+        price_histogram_usd: {
+          histogram: { field: "priceUSD", interval: 100 },
+        },
+        price_histogram_eur: {
+          histogram: { field: "priceEUR", interval: 100 },
+        },
+        price_histogram_uah: {
+          histogram: { field: "priceUAH", interval: 100 },
         },
         availability: {
           terms: {
@@ -790,38 +779,44 @@ export async function getProductAggregations(query: any, strapi?: any) {
       },
     });
 
-    const priceStatsData = (response.aggregations.price_stats as any)?.stats;
-    console.log(`💰 Price stats for currency ${currency}:`, {
-      count: priceStatsData?.count,
-      min: priceStatsData?.min,
-      max: priceStatsData?.max,
-      avg: priceStatsData?.avg,
-      sum: priceStatsData?.sum,
-      raw: response.aggregations.price_stats,
-    });
+    const statsUSD = (response.aggregations.price_stats_usd as any)?.stats;
+    const statsEUR = (response.aggregations.price_stats_eur as any)?.stats;
+    const statsUAH = (response.aggregations.price_stats_uah as any)?.stats;
 
-    // Ensure priceStats has valid min/max values
-    const priceStats = priceStatsData
-      ? {
-          count: priceStatsData.count || 0,
-          min: priceStatsData.min ?? priceStatsData.min_value ?? 0,
-          max: priceStatsData.max ?? priceStatsData.max_value ?? 100000,
-          avg: priceStatsData.avg ?? 0,
-          sum: priceStatsData.sum ?? 0,
-        }
-      : {
-          count: 0,
-          min: 0,
-          max: 100000,
-          avg: 0,
-          sum: 0,
-        };
+    const toStats = (s: any) =>
+      s
+        ? {
+            count: s.count || 0,
+            min: s.min ?? s.min_value ?? 0,
+            max: s.max ?? s.max_value ?? 0,
+            avg: s.avg ?? 0,
+            sum: s.sum ?? 0,
+          }
+        : { count: 0, min: 0, max: 0, avg: 0, sum: 0 };
+
+    const priceStatsByCurrency = {
+      USD: toStats(statsUSD),
+      EUR: toStats(statsEUR),
+      UAH: toStats(statsUAH),
+    };
 
     return {
       categories: (response.aggregations.categories as any).buckets,
       tags: (response.aggregations.tags as any).tag_terms.buckets,
-      priceStats: priceStats,
-      priceHistogram: (response.aggregations.price_histogram as any).buckets,
+      // Keep backward key 'priceStats' selecting current currency if needed
+      priceStats: priceStatsByCurrency[currency as "USD" | "EUR" | "UAH"] || {
+        count: 0,
+        min: 0,
+        max: 0,
+        avg: 0,
+        sum: 0,
+      },
+      priceStatsByCurrency,
+      priceHistogramByCurrency: {
+        USD: (response.aggregations.price_histogram_usd as any)?.buckets || [],
+        EUR: (response.aggregations.price_histogram_eur as any)?.buckets || [],
+        UAH: (response.aggregations.price_histogram_uah as any)?.buckets || [],
+      },
       availability: (response.aggregations.availability as any).buckets,
       condition: (response.aggregations.condition as any).buckets,
       subcategories: (response.aggregations.subcategories as any)
