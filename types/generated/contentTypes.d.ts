@@ -522,6 +522,7 @@ export interface ApiChatChat extends Struct.CollectionTypeSchema {
       'manyToMany',
       'plugin::users-permissions.user'
     >;
+    product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
     status: Schema.Attribute.Enumeration<
       ['active', 'successfully_completed', 'unsuccessfully_completed', 'closed']
@@ -589,12 +590,14 @@ export interface ApiMessageMessage extends Struct.CollectionTypeSchema {
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     isRead: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    isSystem: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
       'api::message.message'
     > &
       Schema.Attribute.Private;
+    product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
     readBy: Schema.Attribute.Relation<
       'manyToMany',
@@ -603,8 +606,7 @@ export interface ApiMessageMessage extends Struct.CollectionTypeSchema {
     sender: Schema.Attribute.Relation<
       'manyToOne',
       'plugin::users-permissions.user'
-    > &
-      Schema.Attribute.Required;
+    >;
     text: Schema.Attribute.Text & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &

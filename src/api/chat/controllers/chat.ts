@@ -18,10 +18,36 @@ export default factories.createCoreController(
           },
         },
         populate: {
-          participants: true,
+          participants: {
+            populate: {
+              metadata: {
+                populate: {
+                  avatar: true,
+                },
+              },
+            },
+          },
+          product: {
+            populate: {
+              images: true,
+            },
+          },
           messages: {
             populate: {
-              sender: true,
+              sender: {
+                populate: {
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
+                  },
+                },
+              },
+              product: {
+                populate: {
+                  images: true,
+                },
+              },
             },
             sort: { createdAt: "desc" },
           },
@@ -67,6 +93,11 @@ export default factories.createCoreController(
                 },
               },
             },
+            product: {
+              populate: {
+                images: true,
+              },
+            },
           },
           sort: { createdAt: "asc" },
         }
@@ -77,22 +108,59 @@ export default factories.createCoreController(
 
     // Создание нового чата или возврат существующего
     async create(ctx) {
-      const { topic, participantIds } = ctx.request.body;
+      const { topic, participantIds, productId } = ctx.request.body;
       const { user } = ctx.state;
 
       if (!user) {
         return ctx.unauthorized("You must be authenticated");
       }
 
-      if (!topic || !participantIds || !Array.isArray(participantIds)) {
-        return ctx.badRequest("Topic and participantIds are required");
+      if (!participantIds || !Array.isArray(participantIds)) {
+        return ctx.badRequest("participantIds are required");
       }
 
       // Добавляем текущего пользователя к участникам
       const allParticipants = [...participantIds, user.id];
 
+      // Убеждаемся, что участников ровно двое (продавец и покупатель)
+      if (allParticipants.length !== 2) {
+        return ctx.badRequest(
+          "Chat must have exactly 2 participants (seller and buyer)"
+        );
+      }
+
       try {
-        // Сначала ищем существующий чат между участниками
+        // Если указан productId, проверяем, что товар существует и получаем продавца
+        let sellerId: number | null = null;
+        if (productId) {
+          const product = await strapi.entityService.findOne(
+            "api::product.product",
+            productId,
+            {
+              populate: {
+                seller: true,
+              },
+            }
+          );
+
+          if (!product) {
+            return ctx.notFound("Product not found");
+          }
+
+          sellerId = (product as any).seller?.id;
+          if (!sellerId) {
+            return ctx.badRequest("Product has no seller");
+          }
+
+          // Проверяем, что продавец товара является одним из участников
+          if (!allParticipants.includes(sellerId)) {
+            return ctx.badRequest(
+              "Seller of the product must be one of the participants"
+            );
+          }
+        }
+
+        // Ищем существующий активный чат между этими двумя участниками
         const existingChats = await strapi.entityService.findMany(
           "api::chat.chat",
           {
@@ -105,46 +173,301 @@ export default factories.createCoreController(
               status: "active",
             },
             populate: {
-              participants: true,
+              participants: {
+                populate: {
+                  metadata: true,
+                },
+              },
+              product: true,
             },
           }
         );
 
-        // Фильтруем чаты, которые содержат всех участников
+        // Фильтруем чаты, которые содержат ровно этих двух участников
         const validChats = existingChats.filter((chat) => {
-          const participantIds = (chat as any).participants.map(
+          const chatParticipantIds = (chat as any).participants.map(
             (p: any) => p.id
           );
           return (
-            allParticipants.every((id) => participantIds.includes(id)) &&
-            participantIds.length === allParticipants.length
+            allParticipants.every((id) => chatParticipantIds.includes(id)) &&
+            chatParticipantIds.length === allParticipants.length
           );
         });
 
-        // Если указан topic, ищем чат с таким же топиком
-        if (validChats.length > 0) {
-          const chatWithSameTopic = validChats.find(
-            (chat) => chat.topic === topic
+        // Если указан productId, ищем чат с этим продуктом
+        if (productId && validChats.length > 0) {
+          const chatWithProduct = validChats.find(
+            (chat) => (chat as any).product?.id === productId
           );
-          if (chatWithSameTopic) {
-            return { data: chatWithSameTopic };
+          if (chatWithProduct) {
+            return { data: chatWithProduct };
           }
 
-          // Если есть чат с этими участниками, но другим топиком, возвращаем его
-          return { data: validChats[0] };
+          // Если есть чат, но с другим товаром - обновляем товар и создаем системное сообщение
+          const existingChat = validChats[0];
+          const currentProductId = (existingChat as any).product?.id;
+
+          if (currentProductId && currentProductId !== productId) {
+            // Обновляем товар в чате
+            const updatedChat = await strapi.entityService.update(
+              "api::chat.chat",
+              existingChat.id,
+              {
+                data: {
+                  product: { connect: [productId] } as any,
+                },
+                populate: {
+                  participants: {
+                    populate: {
+                      metadata: true,
+                    },
+                  },
+                  product: {
+                    populate: {
+                      images: true,
+                    },
+                  },
+                } as any,
+              }
+            );
+
+            // Проверяем последнее сообщение в чате
+            const lastMessages = await strapi.entityService.findMany(
+              "api::message.message",
+              {
+                filters: {
+                  chat: existingChat.id,
+                } as any,
+                populate: {
+                  product: true,
+                },
+                sort: { createdAt: "desc" },
+                limit: 1,
+              }
+            );
+
+            // Создаем системное сообщение о смене товара только если последнее сообщение не такое же
+            const lastMessage = lastMessages[0];
+            const shouldCreateSystemMessage =
+              !lastMessage ||
+              !(lastMessage as any).isSystem ||
+              (lastMessage as any).product?.id !== productId;
+
+            if (shouldCreateSystemMessage) {
+              const product = await strapi.entityService.findOne(
+                "api::product.product",
+                productId,
+                {
+                  populate: {
+                    images: true,
+                  },
+                }
+              );
+
+              if (product) {
+                const systemMessageText = `${(product as any).title}`;
+                await strapi.entityService.create("api::message.message", {
+                  data: {
+                    text: systemMessageText,
+                    chat: { connect: [existingChat.id] } as any,
+                    isSystem: true as any,
+                    product: { connect: [productId] } as any,
+                    isRead: true, // Системные сообщения считаются прочитанными
+                  } as any,
+                  populate: {
+                    product: {
+                      populate: {
+                        images: true,
+                      },
+                    },
+                  } as any,
+                });
+              }
+            }
+
+            return { data: updatedChat };
+          }
+        }
+
+        // Если есть активный чат между этими участниками (без продукта или с другим продуктом), возвращаем его
+        // Это обеспечивает один чат на пару продавец-покупатель
+        if (validChats.length > 0) {
+          const existingChat = validChats[0];
+
+          // Если чат без товара, но указан новый товар - добавляем товар и создаем системное сообщение
+          if (productId && !(existingChat as any).product) {
+            // Обновляем товар в чате
+            const updatedChat = await strapi.entityService.update(
+              "api::chat.chat",
+              existingChat.id,
+              {
+                data: {
+                  product: { connect: [productId] } as any,
+                },
+                populate: {
+                  participants: {
+                    populate: {
+                      metadata: true,
+                    },
+                  },
+                  product: {
+                    populate: {
+                      images: true,
+                    },
+                  },
+                } as any,
+              }
+            );
+
+            // Проверяем последнее сообщение в чате
+            const lastMessages = await strapi.entityService.findMany(
+              "api::message.message",
+              {
+                filters: {
+                  chat: existingChat.id,
+                } as any,
+                populate: {
+                  product: true,
+                },
+                sort: { createdAt: "desc" },
+                limit: 1,
+              }
+            );
+
+            // Создаем системное сообщение о товаре только если последнее сообщение не такое же
+            const lastMessage = lastMessages[0];
+            const shouldCreateSystemMessage =
+              !lastMessage ||
+              !(lastMessage as any).isSystem ||
+              (lastMessage as any).product?.id !== productId;
+
+            if (shouldCreateSystemMessage) {
+              const product = await strapi.entityService.findOne(
+                "api::product.product",
+                productId,
+                {
+                  populate: {
+                    images: true,
+                  },
+                }
+              );
+
+              if (product) {
+                const systemMessageText = `${(product as any).title}`;
+                await strapi.entityService.create("api::message.message", {
+                  data: {
+                    text: systemMessageText,
+                    chat: { connect: [existingChat.id] } as any,
+                    isSystem: true as any,
+                    product: { connect: [productId] } as any,
+                    isRead: true,
+                  } as any,
+                  populate: {
+                    product: {
+                      populate: {
+                        images: true,
+                      },
+                    },
+                  } as any,
+                });
+              }
+            }
+
+            return { data: updatedChat };
+          }
+
+          return { data: existingChat };
+        }
+
+        // Генерируем topic автоматически, если не указан
+        let chatTopic = topic;
+        if (!chatTopic) {
+          // Получаем данные участников для генерации topic
+          const otherParticipantId = allParticipants.find(
+            (id) => id !== user.id
+          );
+          if (otherParticipantId) {
+            const otherParticipant = await strapi.entityService.findOne(
+              "plugin::users-permissions.user",
+              otherParticipantId,
+              {
+                populate: {
+                  metadata: true,
+                },
+              }
+            );
+            if (otherParticipant) {
+              const otherUser = otherParticipant as any;
+              if (otherUser.metadata?.companyName) {
+                chatTopic = `${otherUser.username} (${otherUser.metadata.companyName})`;
+              } else {
+                chatTopic = otherUser.displayName || otherUser.username;
+              }
+            }
+          }
         }
 
         // Если чат не найден, создаем новый
+        const chatData: any = {
+          topic: chatTopic || "Chat",
+          participants: { connect: allParticipants } as any,
+          status: "active",
+        };
+
+        // Добавляем product, если указан
+        if (productId) {
+          chatData.product = { connect: [productId] } as any;
+        }
+
         const chat = await strapi.entityService.create("api::chat.chat", {
-          data: {
-            topic,
-            participants: { connect: allParticipants } as any,
-            status: "active",
-          },
+          data: chatData,
           populate: {
-            participants: true,
+            participants: {
+              populate: {
+                metadata: true,
+              },
+            },
+            product: {
+              populate: {
+                images: true,
+              },
+            },
           },
         });
+
+        // Если чат создан с товаром, создаем системное сообщение
+        // Для нового чата проверка не нужна, так как сообщений еще нет
+        if (productId) {
+          const product = await strapi.entityService.findOne(
+            "api::product.product",
+            productId,
+            {
+              populate: {
+                images: true,
+              },
+            }
+          );
+
+          if (product) {
+            const systemMessageText = `${(product as any).title}`;
+            await strapi.entityService.create("api::message.message", {
+              data: {
+                text: systemMessageText,
+                chat: { connect: [chat.id] } as any,
+                isSystem: true as any,
+                product: { connect: [productId] } as any,
+                isRead: true,
+              } as any,
+              populate: {
+                product: {
+                  populate: {
+                    images: true,
+                  },
+                },
+              } as any,
+            });
+          }
+        }
 
         return { data: chat };
       } catch (error) {

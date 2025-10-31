@@ -35,6 +35,11 @@
       "target": "api::message.message",
       "mappedBy": "chat"
     },
+    "product": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product"
+    },
     "createdAt": {
       "type": "datetime"
     },
