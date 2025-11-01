@@ -121,9 +121,10 @@ export const productMapping: any = {
     },
     // Custom attributes
     attributesJson: { type: "object" },
-    // Availability and condition
-    availability: { type: "keyword" },
+    // Condition
     condition: { type: "keyword" },
+    // Video URL
+    videoUrl: { type: "keyword" },
     // Simple category fields for new approach
     categoryId: { type: "integer" },
     categoryName: { type: "keyword" },
@@ -224,7 +225,7 @@ export async function indexProduct(product: any) {
       priceEUR: product.priceEUR ?? 0,
       priceUAH: product.priceUAH ?? 0,
       currency: product.currency || "USD",
-      status: product.status,
+      status: product.status || "available",
       viewsCount: product.viewsCount || 0,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
@@ -281,12 +282,8 @@ export async function indexProduct(product: any) {
           }))
         : [],
       attributesJson: product.attributesJson || {},
-      availability:
-        product.availability ||
-        product.attributesJson?.availability ||
-        "in_stock",
-      condition:
-        product.condition || product.attributesJson?.condition || "new",
+      condition: product.condition || "new",
+      videoUrl: product.videoUrl || null,
       // Build category hierarchy for better filtering
       categoryHierarchy: (() => {
         const hierarchy = [];
@@ -499,10 +496,10 @@ export async function searchProducts(query: any, strapi?: any) {
       });
     }
 
-    // Add availability filter
+    // Add status filter
     if (availability && availability.length > 0) {
       searchQuery.bool.must.push({
-        terms: { availability: availability },
+        terms: { status: availability },
       });
     }
 
@@ -541,8 +538,8 @@ export async function searchProducts(query: any, strapi?: any) {
         sortField = "sku";
       } else if (field === "status") {
         sortField = "status";
-      } else if (field === "availability") {
-        sortField = "availability";
+      } else if (field === "status") {
+        sortField = "status";
       } else if (field === "condition") {
         sortField = "condition";
       } else if (field === "price") {
@@ -655,10 +652,10 @@ export async function getProductAggregations(query: any, strapi?: any) {
 
     // No status filtering for aggregations
 
-    // Add availability filter
+    // Add status filter
     if (availability && availability.length > 0) {
       searchQuery.bool.must.push({
-        terms: { availability: availability },
+        terms: { status: availability },
       });
     }
 
@@ -736,9 +733,9 @@ export async function getProductAggregations(query: any, strapi?: any) {
           filter: { range: { priceUAH: { gt: 0 } } },
           aggs: { stats: { stats: { field: "priceUAH" } } },
         },
-        availability: {
+        status: {
           terms: {
-            field: "availability",
+            field: "status",
             size: 20,
           },
         },
@@ -797,7 +794,7 @@ export async function getProductAggregations(query: any, strapi?: any) {
         sum: 0,
       },
       priceStatsByCurrency,
-      availability: (response.aggregations.availability as any).buckets,
+      availability: (response.aggregations.status as any).buckets,
       condition: (response.aggregations.condition as any).buckets,
       subcategories: (response.aggregations.subcategories as any)
         .subcategory_terms.buckets,
@@ -883,10 +880,10 @@ export async function searchProductsBySeller(query: any) {
       });
     }
 
-    // Add availability filter
+    // Add status filter
     if (availability && availability.length > 0) {
       searchQuery.bool.must.push({
-        terms: { availability: availability },
+        terms: { status: availability },
       });
     }
 
@@ -925,8 +922,8 @@ export async function searchProductsBySeller(query: any) {
         sortField = "sku";
       } else if (field === "status") {
         sortField = "status";
-      } else if (field === "availability") {
-        sortField = "availability";
+      } else if (field === "status") {
+        sortField = "status";
       } else if (field === "condition") {
         sortField = "condition";
       } else if (field === "price") {
@@ -1002,10 +999,10 @@ export async function getSellerProductAggregations(query: any) {
       },
     };
 
-    // Add availability filter
+    // Add status filter
     if (availability && availability.length > 0) {
       searchQuery.bool.must.push({
-        terms: { availability: availability },
+        terms: { status: availability },
       });
     }
 
@@ -1055,9 +1052,9 @@ export async function getSellerProductAggregations(query: any) {
           },
         },
         // Keep only non-histogram aggregations for seller view
-        availability: {
+        status: {
           terms: {
-            field: "availability",
+            field: "status",
             size: 20,
           },
         },
@@ -1114,7 +1111,7 @@ export async function getSellerProductAggregations(query: any) {
       categories: (response.aggregations.categories as any).buckets,
       tags: (response.aggregations.tags as any).tag_terms.buckets,
       priceStats: priceStats,
-      availability: (response.aggregations.availability as any).buckets,
+      availability: (response.aggregations.status as any).buckets,
       condition: (response.aggregations.condition as any).buckets,
       subcategories: (response.aggregations.subcategories as any)
         .subcategory_terms.buckets,

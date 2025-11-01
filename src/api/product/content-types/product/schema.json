@@ -61,14 +61,20 @@
       "target": "plugin::users-permissions.user",
       "inversedBy": "products"
     },
+    "condition": {
+      "type": "enumeration",
+      "default": "new",
+      "enum": [
+        "new",
+        "used"
+      ]
+    },
     "status": {
       "type": "enumeration",
       "default": "available",
       "enum": [
         "available",
-        "reserved",
-        "sold",
-        "archived"
+        "unavailable"
       ]
     },
     "attributesJson": {
@@ -103,6 +109,10 @@
     "viewsCount": {
       "type": "biginteger",
       "default": 0
+    },
+    "videoUrl": {
+      "type": "string",
+      "required": false
     }
   }
 }

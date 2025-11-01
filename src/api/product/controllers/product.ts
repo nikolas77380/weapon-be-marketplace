@@ -49,6 +49,31 @@ export default factories.createCoreController(
       try {
         const { query } = ctx;
 
+        // Try to get user from token if Authorization header is present
+        // Since auth: false is set on the route, ctx.state.user won't be set automatically
+        let authenticatedUser = ctx.state.user;
+        if (!authenticatedUser) {
+          const authHeader = ctx.request.header.authorization;
+          if (authHeader && authHeader.startsWith("Bearer ")) {
+            const token = authHeader.substring(7);
+            try {
+              // Verify token and get user
+              const { id } =
+                await strapi.plugins["users-permissions"].services.jwt.verify(
+                  token
+                );
+              authenticatedUser = await strapi.entityService.findOne(
+                "plugin::users-permissions.user",
+                id,
+                { populate: ["role"] }
+              );
+            } catch (error) {
+              // Invalid token, ignore and continue as unauthenticated
+              console.log("Token verification failed:", error.message);
+            }
+          }
+        }
+
         const populate = {
           category: {
             populate: {
@@ -65,10 +90,68 @@ export default factories.createCoreController(
 
         const filters = { ...(query.filters as any) };
 
+        // Debug: log incoming query and user state
+        console.log("findPublic - Debug info:", {
+          hasUser: !!authenticatedUser,
+          userId: authenticatedUser?.id,
+          hasAuthHeader: !!ctx.request.header.authorization,
+          queryFilters: query.filters,
+          filters,
+        });
+
         // Enforce public status filter: only available products on public listing
-        if (!filters.status) {
-          (filters as any).status = { $eq: "available" };
+        // Exception: if the authenticated user is the same seller being filtered,
+        // show all products regardless of status (so sellers can see all their own products)
+        let isSellerViewingOwnProducts = false;
+        if (authenticatedUser && filters.seller) {
+          const currentUserId = Number(authenticatedUser.id);
+          let sellerId: number | undefined;
+
+          // Handle different filter formats: filters.seller.$eq or filters.seller directly
+          if (filters.seller.$eq !== undefined) {
+            sellerId = Number(filters.seller.$eq);
+          } else if (typeof filters.seller === "number") {
+            sellerId = filters.seller;
+          } else if (typeof filters.seller === "string") {
+            sellerId = Number(filters.seller);
+          }
+
+          isSellerViewingOwnProducts =
+            sellerId !== undefined &&
+            !isNaN(sellerId) &&
+            sellerId === currentUserId;
+
+          // Debug logging
+          console.log("Product filter check:", {
+            hasUser: !!authenticatedUser,
+            currentUserId,
+            filtersSeller: filters.seller,
+            sellerId,
+            isSellerViewingOwnProducts,
+            filtersSellerType: typeof filters.seller,
+            filtersSellerKeys: filters.seller
+              ? Object.keys(filters.seller)
+              : [],
+          });
+        } else {
+          console.log("Product filter check skipped:", {
+            hasUser: !!authenticatedUser,
+            hasSellerFilter: !!filters.seller,
+          });
         }
+
+        // If seller is viewing own products, remove any status filter
+        if (isSellerViewingOwnProducts) {
+          delete filters.status;
+          console.log("Removed status filter for seller viewing own products");
+        } else if (!filters.status) {
+          (filters as any).status = { $eq: "available" };
+          console.log("Applying status filter: available");
+        } else {
+          console.log("Status filter already present:", filters.status);
+        }
+
+        console.log("Final filters:", JSON.stringify(filters, null, 2));
 
         // Handle category slug filter
         if ((query.filters as any)?.categorySlug) {
@@ -129,6 +212,8 @@ export default factories.createCoreController(
           }
         );
 
+        console.log("Product count with filters:", totalCount);
+
         const products = await strapi.entityService.findMany(
           "api::product.product",
           {
@@ -138,6 +223,12 @@ export default factories.createCoreController(
             start: (page - 1) * pageSize,
             limit: pageSize,
           }
+        );
+
+        console.log("Products returned:", products.length);
+        console.log(
+          "Product statuses:",
+          products.map((p) => ({ id: p.id, status: p.status, title: p.title }))
         );
 
         const pageCount = Math.ceil(totalCount / pageSize);
@@ -386,7 +477,7 @@ export default factories.createCoreController(
         }
 
         // Ensure status is valid
-        const validStatuses = ["available", "reserved", "sold", "archived"];
+        const validStatuses = ["available", "unavailable"];
         if (
           cleanedData.status &&
           !validStatuses.includes(String(cleanedData.status))
@@ -843,7 +934,7 @@ export default factories.createCoreController(
         console.log("data", data);
         // Validate status field if provided
         if (data.status) {
-          const validStatuses = ["available", "reserved", "sold", "archived"];
+          const validStatuses = ["available", "unavailable"];
           if (!validStatuses.includes(data.status)) {
             return ctx.badRequest(
               `Invalid status. Must be one of: ${validStatuses.join(", ")}`

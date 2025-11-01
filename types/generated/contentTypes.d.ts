@@ -668,6 +668,8 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::certificate.certificate'
     >;
+    condition: Schema.Attribute.Enumeration<['new', 'used']> &
+      Schema.Attribute.DefaultTo<'new'>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -715,9 +717,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     >;
     sku: Schema.Attribute.String & Schema.Attribute.Unique;
     slug: Schema.Attribute.UID<'title'>;
-    status: Schema.Attribute.Enumeration<
-      ['available', 'reserved', 'sold', 'archived']
-    > &
+    status: Schema.Attribute.Enumeration<['available', 'unavailable']> &
       Schema.Attribute.DefaultTo<'available'>;
     tags: Schema.Attribute.Relation<'manyToMany', 'api::tag.tag'>;
     title: Schema.Attribute.String &
@@ -728,6 +728,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    videoUrl: Schema.Attribute.String;
     viewsCount: Schema.Attribute.BigInteger & Schema.Attribute.DefaultTo<0>;
   };
 }
