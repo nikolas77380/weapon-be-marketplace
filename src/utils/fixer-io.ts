@@ -40,7 +40,7 @@ export async function fetchCurrencyRates(
       );
     }
 
-    const data: FixerIOResponse = await response.json();
+    const data = (await response.json()) as FixerIOResponse;
 
     if (!data.success) {
       throw new Error(
