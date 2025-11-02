@@ -540,6 +540,42 @@ export interface ApiChatChat extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiCurrencyRateCurrencyRate
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'currency_rates';
+  info: {
+    displayName: 'Currency Rate';
+    pluralName: 'currency-rates';
+    singularName: 'currency-rate';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    date: Schema.Attribute.Date &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    EUR: Schema.Attribute.Decimal & Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::currency-rate.currency-rate'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    UAH: Schema.Attribute.Decimal & Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    USD: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<1>;
+  };
+}
+
 export interface ApiFavouriteFavourite extends Struct.CollectionTypeSchema {
   collectionName: 'favourites';
   info: {
@@ -1441,6 +1477,7 @@ declare module '@strapi/strapi' {
       'api::category.category': ApiCategoryCategory;
       'api::certificate.certificate': ApiCertificateCertificate;
       'api::chat.chat': ApiChatChat;
+      'api::currency-rate.currency-rate': ApiCurrencyRateCurrencyRate;
       'api::favourite.favourite': ApiFavouriteFavourite;
       'api::message.message': ApiMessageMessage;
       'api::order.order': ApiOrderOrder;

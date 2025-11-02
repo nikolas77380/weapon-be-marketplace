@@ -1,0 +1,33 @@
+{
+  "kind": "collectionType",
+  "collectionName": "currency_rates",
+  "info": {
+    "singularName": "currency-rate",
+    "pluralName": "currency-rates",
+    "displayName": "Currency Rate"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "USD": {
+      "type": "decimal",
+      "required": true,
+      "default": 1.0
+    },
+    "EUR": {
+      "type": "decimal",
+      "required": true
+    },
+    "UAH": {
+      "type": "decimal",
+      "required": true
+    },
+    "date": {
+      "type": "date",
+      "required": true,
+      "unique": true
+    }
+  }
+}

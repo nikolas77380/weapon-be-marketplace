@@ -42,6 +42,51 @@ const getAllChildCategoryIds = async (strapi, categoryId) => {
   return allChildIds;
 };
 
+/**
+ * Helper function to auto-calculate EUR and UAH prices from USD
+ */
+async function calculatePricesFromUSD(
+  strapi: any,
+  priceUSD: number | string | undefined | null,
+  data: any
+): Promise<void> {
+  if (priceUSD === undefined || priceUSD === null) {
+    return;
+  }
+
+  try {
+    const apiKey = process.env.FIXER_API_KEY;
+    const currencyRateService = strapi.service(
+      "api::currency-rate.currency-rate"
+    );
+
+    // Get latest rates (with auto-update if needed)
+    const rates = await currencyRateService.getLatestRatesOrUpdate(apiKey);
+
+    if (rates) {
+      const usdPrice = parseFloat(String(priceUSD));
+      if (!isNaN(usdPrice) && usdPrice > 0) {
+        // Calculate prices based on USD
+        data.priceEUR = (usdPrice * parseFloat(rates.EUR)).toFixed(2);
+        data.priceUAH = (usdPrice * parseFloat(rates.UAH)).toFixed(2);
+
+        console.log(
+          `Auto-calculated prices: USD=${usdPrice}, EUR=${data.priceEUR}, UAH=${data.priceUAH}`
+        );
+      }
+    } else {
+      console.warn("Currency rates not available, skipping auto-calculation");
+    }
+  } catch (error) {
+    console.error(
+      "Error calculating EUR and UAH prices:",
+      error,
+      "Continuing with USD price only"
+    );
+    // Continue without EUR/UAH if calculation fails
+  }
+}
+
 export default factories.createCoreController(
   "api::product.product",
   ({ strapi }) => ({
@@ -511,6 +556,13 @@ export default factories.createCoreController(
           cleanedData.status = String(cleanedData.status).trim().toLowerCase();
         }
 
+        // Auto-calculate EUR and UAH prices from USD if priceUSD is provided
+        await calculatePricesFromUSD(
+          strapi,
+          cleanedData.priceUSD as number | string | undefined | null,
+          cleanedData
+        );
+
         const productData: any = {
           ...cleanedData,
           seller: ctx.state.user.id,
@@ -944,6 +996,11 @@ export default factories.createCoreController(
 
         if (data.title && data.title !== (existingProduct as any).title) {
           data.slug = await generateUniqueSlug(strapi, data.title, productId);
+        }
+
+        // Auto-calculate EUR and UAH prices from USD if priceUSD is provided or updated
+        if (data.priceUSD !== undefined) {
+          await calculatePricesFromUSD(strapi, data.priceUSD, data);
         }
 
         const updateOptions: any = {
