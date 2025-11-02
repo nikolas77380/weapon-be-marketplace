@@ -814,6 +814,7 @@ export interface ApiSellerMetaSellerMeta extends Struct.CollectionTypeSchema {
   attributes: {
     address: Schema.Attribute.Text;
     avatar: Schema.Attribute.Media<'images'>;
+    businessId: Schema.Attribute.String;
     companyName: Schema.Attribute.String;
     country: Schema.Attribute.String;
     createdAt: Schema.Attribute.DateTime;

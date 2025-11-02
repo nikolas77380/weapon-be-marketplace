@@ -26,6 +26,9 @@
     "companyName": {
       "type": "string"
     },
+    "businessId": {
+      "type": "string"
+    },
     "webSite": {
       "type": "string"
     },
