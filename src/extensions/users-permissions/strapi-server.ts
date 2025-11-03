@@ -199,6 +199,25 @@ const strapiServerOverride = (plugin) => {
     ...require("./controllers/user").default,
   };
 
+  // Register custom routes
+  const customRoutesConfig = require("./routes/users").default;
+  if (customRoutesConfig && customRoutesConfig.routes) {
+    // Add routes to content-api
+    if (!plugin.routes["content-api"]) {
+      plugin.routes["content-api"] = { routes: [] };
+    }
+    if (Array.isArray(plugin.routes["content-api"].routes)) {
+      plugin.routes["content-api"].routes.push(...customRoutesConfig.routes);
+    } else {
+      plugin.routes["content-api"].routes = customRoutesConfig.routes;
+    }
+
+    console.log(
+      "Registered custom routes:",
+      customRoutesConfig.routes.map((r: any) => r.path)
+    );
+  }
+
   return plugin;
 };
 

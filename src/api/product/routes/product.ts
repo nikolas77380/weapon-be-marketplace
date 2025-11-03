@@ -13,6 +13,14 @@ export default {
     },
     {
       method: "GET",
+      path: "/products/public/top-by-categories",
+      handler: "product.getTopProductsByCategories",
+      config: {
+        auth: false,
+      },
+    },
+    {
+      method: "GET",
       path: "/products/public/:id",
       handler: "product.findOnePublic",
       config: {

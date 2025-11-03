@@ -88,108 +88,26 @@ export default {
         return ctx.badRequest("Search term is required");
       }
 
-      const populate = {
-        role: true,
-        metadata: {
-          populate: {
-            avatar: true,
-          },
-        },
-        products: {
-          populate: {
-            images: true,
-            category: true,
-          },
-        },
-      };
+      // Получаем роль "seller"
+      const sellerRole = await strapi
+        .query("plugin::users-permissions.role")
+        .findOne({
+          where: { name: "seller" },
+        });
 
-      const page = Number((query.pagination as any)?.page) || 1;
-      const pageSize = Number((query.pagination as any)?.pageSize) || 10;
-
-      // Создаем фильтры для поиска продавцов
-      const filters: any = {
-        $or: [
-          // Поиск по имени пользователя (displayName)
-          {
-            displayName: {
-              $containsi: searchTerm.trim(),
+      if (!sellerRole) {
+        return ctx.send({
+          data: [],
+          meta: {
+            pagination: {
+              page: 1,
+              pageSize: 10,
+              pageCount: 0,
+              total: 0,
             },
+            searchTerm: searchTerm.trim(),
           },
-          // Поиск по имени компании
-          {
-            metadata: {
-              companyName: {
-                $containsi: searchTerm.trim(),
-              },
-            },
-          },
-          // Поиск по специализации
-          {
-            metadata: {
-              specialisation: {
-                $containsi: searchTerm.trim(),
-              },
-            },
-          },
-        ],
-      };
-
-      const totalCount = await strapi.entityService.count(
-        "plugin::users-permissions.user",
-        {
-          filters,
-        }
-      );
-
-      const sellers = await strapi.entityService.findMany(
-        "plugin::users-permissions.user",
-        {
-          filters,
-          sort: query.sort || [{ createdAt: "desc" }],
-          populate,
-          start: (page - 1) * pageSize,
-          limit: pageSize,
-        }
-      );
-
-      // Remove sensitive data from sellers
-      const sanitizedSellers = sellers.map((seller: any) => {
-        const {
-          password: _,
-          resetPasswordToken: __,
-          confirmationToken: ___,
-          ...sellerWithoutSensitiveData
-        } = seller;
-        return sellerWithoutSensitiveData;
-      });
-
-      const pageCount = Math.ceil(totalCount / pageSize);
-
-      return ctx.send({
-        data: sanitizedSellers,
-        meta: {
-          pagination: {
-            page,
-            pageSize,
-            pageCount,
-            total: totalCount,
-          },
-          searchTerm: searchTerm.trim(),
-        },
-      });
-    } catch (error) {
-      console.error("Error searching sellers:", error);
-      return ctx.internalServerError("Failed to search sellers");
-    }
-  },
-
-  async searchSellersPublic(ctx) {
-    try {
-      const { query } = ctx;
-      const searchTerm = query.search as string;
-
-      if (!searchTerm || searchTerm.trim().length === 0) {
-        return ctx.badRequest("Search term is required");
+        });
       }
 
       const populate = {
@@ -212,28 +130,37 @@ export default {
 
       // Создаем фильтры для поиска продавцов
       const filters: any = {
-        $or: [
-          // Поиск по имени пользователя (displayName)
+        $and: [
           {
-            displayName: {
-              $containsi: searchTerm.trim(),
+            role: {
+              id: { $eq: sellerRole.id },
             },
           },
-          // Поиск по имени компании
           {
-            metadata: {
-              companyName: {
-                $containsi: searchTerm.trim(),
+            $or: [
+              // Поиск по имени пользователя (displayName)
+              {
+                displayName: {
+                  $containsi: searchTerm.trim(),
+                },
               },
-            },
-          },
-          // Поиск по специализации
-          {
-            metadata: {
-              specialisation: {
-                $containsi: searchTerm.trim(),
+              // Поиск по имени компании
+              {
+                metadata: {
+                  companyName: {
+                    $containsi: searchTerm.trim(),
+                  },
+                },
               },
-            },
+              // Поиск по специализации
+              {
+                metadata: {
+                  specialisation: {
+                    $containsi: searchTerm.trim(),
+                  },
+                },
+              },
+            ],
           },
         ],
       };
@@ -244,6 +171,9 @@ export default {
           filters,
         }
       );
+
+      console.log("Search sellers filters:", JSON.stringify(filters, null, 2));
+      console.log("Seller role ID:", sellerRole.id);
 
       const sellers = await strapi.entityService.findMany(
         "plugin::users-permissions.user",
@@ -256,18 +186,37 @@ export default {
         }
       );
 
-      // Remove sensitive data from sellers
-      const sanitizedSellers = sellers.map((seller: any) => {
-        const {
-          password: _,
-          resetPasswordToken: __,
-          confirmationToken: ___,
-          ...sellerWithoutSensitiveData
-        } = seller;
-        return sellerWithoutSensitiveData;
-      });
+      console.log("Found sellers count:", sellers.length);
+      console.log("First seller role:", (sellers[0] as any)?.role?.name);
 
-      const pageCount = Math.ceil(totalCount / pageSize);
+      // Remove sensitive data from sellers and filter by role (extra check)
+      const sanitizedSellers = sellers
+        .filter((seller: any) => {
+          const isSeller = seller.role?.name === "seller";
+          if (!isSeller) {
+            console.log("Filtered out user:", seller.id, seller.role?.name);
+          }
+          return isSeller;
+        })
+        .map((seller: any) => {
+          const {
+            password: _,
+            resetPasswordToken: __,
+            confirmationToken: ___,
+            ...sellerWithoutSensitiveData
+          } = seller;
+          return sellerWithoutSensitiveData;
+        });
+
+      console.log("Sanitized sellers count:", sanitizedSellers.length);
+
+      // Recalculate total count based on filtered results
+      const actualTotal =
+        sanitizedSellers.length < pageSize
+          ? (page - 1) * pageSize + sanitizedSellers.length
+          : totalCount;
+
+      const pageCount = Math.ceil(actualTotal / pageSize);
 
       return ctx.send({
         data: sanitizedSellers,
@@ -276,7 +225,164 @@ export default {
             page,
             pageSize,
             pageCount,
-            total: totalCount,
+            total: actualTotal,
+          },
+          searchTerm: searchTerm.trim(),
+        },
+      });
+    } catch (error) {
+      console.error("Error searching sellers:", error);
+      return ctx.internalServerError("Failed to search sellers");
+    }
+  },
+
+  async searchSellersPublic(ctx) {
+    try {
+      const { query } = ctx;
+      const searchTerm = query.search as string;
+
+      if (!searchTerm || searchTerm.trim().length === 0) {
+        return ctx.badRequest("Search term is required");
+      }
+
+      // Получаем роль "seller"
+      const sellerRole = await strapi
+        .query("plugin::users-permissions.role")
+        .findOne({
+          where: { name: "seller" },
+        });
+
+      if (!sellerRole) {
+        return ctx.send({
+          data: [],
+          meta: {
+            pagination: {
+              page: 1,
+              pageSize: 10,
+              pageCount: 0,
+              total: 0,
+            },
+            searchTerm: searchTerm.trim(),
+          },
+        });
+      }
+
+      const populate = {
+        role: true,
+        metadata: {
+          populate: {
+            avatar: true,
+          },
+        },
+        products: {
+          populate: {
+            images: true,
+            category: true,
+          },
+        },
+      };
+
+      const page = Number((query.pagination as any)?.page) || 1;
+      const pageSize = Number((query.pagination as any)?.pageSize) || 10;
+
+      // Создаем фильтры для поиска продавцов
+      const filters: any = {
+        $and: [
+          {
+            role: {
+              id: { $eq: sellerRole.id },
+            },
+          },
+          {
+            $or: [
+              // Поиск по имени пользователя (displayName)
+              {
+                displayName: {
+                  $containsi: searchTerm.trim(),
+                },
+              },
+              // Поиск по имени компании
+              {
+                metadata: {
+                  companyName: {
+                    $containsi: searchTerm.trim(),
+                  },
+                },
+              },
+              // Поиск по специализации
+              {
+                metadata: {
+                  specialisation: {
+                    $containsi: searchTerm.trim(),
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const totalCount = await strapi.entityService.count(
+        "plugin::users-permissions.user",
+        {
+          filters,
+        }
+      );
+
+      console.log("Search sellers filters:", JSON.stringify(filters, null, 2));
+      console.log("Seller role ID:", sellerRole.id);
+
+      const sellers = await strapi.entityService.findMany(
+        "plugin::users-permissions.user",
+        {
+          filters,
+          sort: query.sort || [{ createdAt: "desc" }],
+          populate,
+          start: (page - 1) * pageSize,
+          limit: pageSize,
+        }
+      );
+
+      console.log("Found sellers count:", sellers.length);
+      console.log("First seller role:", (sellers[0] as any)?.role?.name);
+
+      // Remove sensitive data from sellers and filter by role (extra check)
+      const sanitizedSellers = sellers
+        .filter((seller: any) => {
+          const isSeller = seller.role?.name === "seller";
+          if (!isSeller) {
+            console.log("Filtered out user:", seller.id, seller.role?.name);
+          }
+          return isSeller;
+        })
+        .map((seller: any) => {
+          const {
+            password: _,
+            resetPasswordToken: __,
+            confirmationToken: ___,
+            ...sellerWithoutSensitiveData
+          } = seller;
+          return sellerWithoutSensitiveData;
+        });
+
+      console.log("Sanitized sellers count:", sanitizedSellers.length);
+
+      // Recalculate total count based on filtered results
+      const actualTotal =
+        sanitizedSellers.length < pageSize
+          ? (page - 1) * pageSize + sanitizedSellers.length
+          : totalCount;
+
+      const pageCount = Math.ceil(actualTotal / pageSize);
+
+      return ctx.send({
+        data: sanitizedSellers,
+        meta: {
+          pagination: {
+            page,
+            pageSize,
+            pageCount,
+            total: actualTotal,
           },
           searchTerm: searchTerm.trim(),
         },

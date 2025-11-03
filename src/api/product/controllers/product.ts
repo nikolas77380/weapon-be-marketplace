@@ -87,6 +87,53 @@ async function calculatePricesFromUSD(
   }
 }
 
+/**
+ * Helper function to filter seller fields, returning only id, username, and companyName
+ */
+function filterSellerFields(seller: any): any {
+  if (!seller) {
+    return seller;
+  }
+
+  const filteredSeller: any = {
+    id: seller.id,
+    username: seller.username,
+  };
+
+  // Get companyName from metadata if available
+  if (seller.metadata && seller.metadata.companyName) {
+    filteredSeller.companyName = seller.metadata.companyName;
+  }
+
+  return filteredSeller;
+}
+
+/**
+ * Helper function to sanitize product seller fields
+ */
+function sanitizeProductSeller(product: any): any {
+  if (!product) {
+    return product;
+  }
+
+  if (product.seller) {
+    product.seller = filterSellerFields(product.seller);
+  }
+
+  return product;
+}
+
+/**
+ * Helper function to sanitize array of products
+ */
+function sanitizeProducts(products: any[]): any[] {
+  if (!Array.isArray(products)) {
+    return products;
+  }
+
+  return products.map((product) => sanitizeProductSeller(product));
+}
+
 export default factories.createCoreController(
   "api::product.product",
   ({ strapi }) => ({
@@ -126,7 +173,11 @@ export default factories.createCoreController(
             },
           },
           tags: true,
-          seller: true,
+          seller: {
+            populate: {
+              metadata: true,
+            },
+          },
           images: true,
         };
 
@@ -278,8 +329,11 @@ export default factories.createCoreController(
 
         const pageCount = Math.ceil(totalCount / pageSize);
 
+        // Sanitize seller fields in products
+        const sanitizedProducts = sanitizeProducts(products);
+
         return ctx.send({
-          data: products,
+          data: sanitizedProducts,
           meta: {
             pagination: {
               page,
@@ -310,7 +364,11 @@ export default factories.createCoreController(
                 },
               },
               tags: true,
-              seller: true,
+              seller: {
+                populate: {
+                  metadata: true,
+                },
+              },
               images: true,
             },
           }
@@ -399,7 +457,10 @@ export default factories.createCoreController(
 
         console.log("=== PUBLIC VIEW TRACKING END ===");
 
-        return ctx.send(product);
+        // Sanitize seller fields
+        const sanitizedProduct = sanitizeProductSeller(product);
+
+        return ctx.send(sanitizedProduct);
       } catch (error) {
         console.error("Error fetching public product:", error);
         return ctx.internalServerError("Failed to fetch product");
@@ -603,7 +664,11 @@ export default factories.createCoreController(
               },
             },
             tags: true,
-            seller: true,
+            seller: {
+              populate: {
+                metadata: true,
+              },
+            },
             images: true,
           },
         };
@@ -686,7 +751,11 @@ export default factories.createCoreController(
         }
 
         console.log("=== PRODUCT CREATE CONTROLLER SUCCESS ===");
-        return ctx.created(product);
+
+        // Sanitize seller fields
+        const sanitizedProduct = sanitizeProductSeller(product);
+
+        return ctx.created(sanitizedProduct);
       } catch (error) {
         console.log("=== PRODUCT CREATE CONTROLLER ERROR ===");
         console.error("Error creating product:", error);
@@ -708,7 +777,11 @@ export default factories.createCoreController(
             },
           },
           tags: true,
-          seller: true,
+          seller: {
+            populate: {
+              metadata: true,
+            },
+          },
           images: true,
         };
 
@@ -789,8 +862,11 @@ export default factories.createCoreController(
 
         const pageCount = Math.ceil(totalCount / pageSize);
 
+        // Sanitize seller fields in products
+        const sanitizedProducts = sanitizeProducts(products);
+
         return ctx.send({
-          data: products,
+          data: sanitizedProducts,
           meta: {
             pagination: {
               page,
@@ -821,7 +897,11 @@ export default factories.createCoreController(
                 },
               },
               tags: true,
-              seller: true,
+              seller: {
+                populate: {
+                  metadata: true,
+                },
+              },
               images: true,
             },
           }
@@ -909,7 +989,10 @@ export default factories.createCoreController(
 
         console.log("=== VIEW TRACKING END ===");
 
-        return ctx.send(product);
+        // Sanitize seller fields
+        const sanitizedProduct = sanitizeProductSeller(product);
+
+        return ctx.send(sanitizedProduct);
       } catch (error) {
         console.error("Error fetching product:", error);
         return ctx.internalServerError("Failed to fetch product");
@@ -1012,7 +1095,11 @@ export default factories.createCoreController(
               },
             },
             tags: true,
-            seller: true,
+            seller: {
+              populate: {
+                metadata: true,
+              },
+            },
             images: true,
           },
         };
@@ -1042,7 +1129,10 @@ export default factories.createCoreController(
           // Don't fail the request if Elasticsearch indexing fails
         }
 
-        return ctx.send(product);
+        // Sanitize seller fields
+        const sanitizedProduct = sanitizeProductSeller(product);
+
+        return ctx.send(sanitizedProduct);
       } catch (error) {
         console.error("Error updating product:", error);
         return ctx.internalServerError("Failed to update product");
@@ -1062,7 +1152,15 @@ export default factories.createCoreController(
         const existingProduct = await strapi.entityService.findOne(
           "api::product.product",
           id,
-          { populate: { seller: true } }
+          {
+            populate: {
+              seller: {
+                populate: {
+                  metadata: true,
+                },
+              },
+            },
+          }
         );
 
         if (!existingProduct) {
@@ -1191,8 +1289,11 @@ export default factories.createCoreController(
 
         const pageCount = Math.ceil(totalCount / pageSize);
 
+        // Sanitize seller fields in products
+        const sanitizedProducts = sanitizeProducts(products);
+
         return ctx.send({
-          data: products,
+          data: sanitizedProducts,
           meta: {
             pagination: {
               page,
@@ -1308,8 +1409,11 @@ export default factories.createCoreController(
 
         const pageCount = Math.ceil(totalCount / pageSize);
 
+        // Sanitize seller fields in products
+        const sanitizedProducts = sanitizeProducts(products);
+
         return ctx.send({
-          data: products,
+          data: sanitizedProducts,
           meta: {
             pagination: {
               page,
@@ -1611,6 +1715,130 @@ export default factories.createCoreController(
         console.error("Error getting seller product aggregations:", error);
         return ctx.internalServerError(
           "Failed to get seller product aggregations"
+        );
+      }
+    },
+
+    async getTopProductsByCategories(ctx) {
+      const startTime = Date.now();
+      try {
+        // Получаем все основные категории (где parent = null)
+        const mainCategories = await strapi.entityService.findMany(
+          "api::category.category",
+          {
+            filters: {
+              parent: null,
+            } as any,
+            fields: ["id", "name", "slug"],
+          }
+        );
+
+        if (!mainCategories || mainCategories.length === 0) {
+          return ctx.send({
+            data: [],
+          });
+        }
+
+        console.log(
+          `Getting top products for ${mainCategories.length} categories`
+        );
+
+        const populate = {
+          category: {
+            populate: {
+              parent: true,
+            },
+          },
+          tags: true,
+          seller: {
+            populate: {
+              metadata: true,
+            },
+          },
+          images: true,
+        };
+
+        // Функция для получения топ продукта категории
+        const getTopProduct = async (mainCategory: any) => {
+          try {
+            // Получаем все дочерние категории рекурсивно
+            const childCategoryIds = await getAllChildCategoryIds(
+              strapi,
+              mainCategory.id
+            );
+            const allCategoryIds = [mainCategory.id, ...childCategoryIds];
+
+            // Получаем топ продукт по просмотрам для этой категории и всех дочерних
+            const products = await strapi.entityService.findMany(
+              "api::product.product",
+              {
+                filters: {
+                  category: {
+                    $in: allCategoryIds,
+                  } as any,
+                  status: {
+                    $eq: "available",
+                  },
+                },
+                sort: [{ viewsCount: "desc" }],
+                populate,
+                limit: 1,
+              }
+            );
+
+            if (!products || products.length === 0) {
+              return null;
+            }
+
+            return products[0];
+          } catch (error) {
+            console.error(
+              `Error fetching top product for category ${mainCategory.id}:`,
+              error
+            );
+            return null;
+          }
+        };
+
+        // Создаем промисы с таймаутом для каждой категории
+        const promises = mainCategories.map((mainCategory, index) => {
+          return Promise.race([
+            getTopProduct(mainCategory),
+            new Promise(
+              (resolve) =>
+                setTimeout(() => {
+                  console.log(
+                    `Timeout for category ${mainCategory.id} (${mainCategory.name})`
+                  );
+                  resolve(null);
+                }, 5000) // 5 секунд таймаут на категорию
+            ),
+          ]).catch(() => null);
+        });
+
+        // Используем Promise.allSettled чтобы получить результаты даже если некоторые упали
+        const results = await Promise.allSettled(promises);
+        const topProducts = results
+          .map((result) =>
+            result.status === "fulfilled" ? result.value : null
+          )
+          .filter(Boolean);
+
+        const endTime = Date.now();
+        console.log(
+          `Top products fetched in ${endTime - startTime}ms, found ${topProducts.length} products`
+        );
+
+        // Sanitize seller fields
+        const sanitizedProducts = sanitizeProducts(topProducts);
+
+        return ctx.send({
+          data: sanitizedProducts,
+        });
+      } catch (error) {
+        console.error("Error getting top products by categories:", error);
+        return ctx.internalServerError(
+          "Failed to get top products by categories"
         );
       }
     },
