@@ -43,14 +43,32 @@ const getAllChildCategoryIds = async (strapi, categoryId) => {
 };
 
 /**
- * Helper function to auto-calculate EUR and UAH prices from USD
+ * Helper function to auto-calculate prices in all currencies from any currency
+ * @param strapi - Strapi instance
+ * @param price - Price value in the specified currency
+ * @param currency - Currency code (USD, EUR, or UAH)
+ * @param data - Product data object to update
  */
-async function calculatePricesFromUSD(
+async function calculatePricesFromCurrency(
   strapi: any,
-  priceUSD: number | string | undefined | null,
+  price: number | string | undefined | null,
+  currency: string | undefined | null,
   data: any
 ): Promise<void> {
-  if (priceUSD === undefined || priceUSD === null) {
+  if (
+    price === undefined ||
+    price === null ||
+    currency === undefined ||
+    currency === null
+  ) {
+    return;
+  }
+
+  const validCurrencies = ["USD", "EUR", "UAH"];
+  const upperCurrency = String(currency).toUpperCase();
+
+  if (!validCurrencies.includes(upperCurrency)) {
+    console.warn(`Invalid currency: ${currency}. Skipping price calculation.`);
     return;
   }
 
@@ -64,14 +82,41 @@ async function calculatePricesFromUSD(
     const rates = await currencyRateService.getLatestRatesOrUpdate(apiKey);
 
     if (rates) {
-      const usdPrice = parseFloat(String(priceUSD));
-      if (!isNaN(usdPrice) && usdPrice > 0) {
-        // Calculate prices based on USD
-        data.priceEUR = (usdPrice * parseFloat(rates.EUR)).toFixed(2);
-        data.priceUAH = (usdPrice * parseFloat(rates.UAH)).toFixed(2);
+      const priceValue = parseFloat(String(price));
+      if (!isNaN(priceValue) && priceValue > 0) {
+        // Rates are stored with USD as base (1 USD = X EUR, 1 USD = X UAH)
+        const usdRate = parseFloat(rates.USD) || 1.0;
+        const eurRate = parseFloat(rates.EUR) || 0;
+        const uahRate = parseFloat(rates.UAH) || 0;
+
+        let priceUSD: number;
+        let priceEUR: number;
+        let priceUAH: number;
+
+        // Convert from input currency to USD first
+        if (upperCurrency === "USD") {
+          priceUSD = priceValue;
+        } else if (upperCurrency === "EUR") {
+          // Convert EUR to USD: if 1 USD = X EUR, then 1 EUR = 1/X USD
+          priceUSD = priceValue / eurRate;
+        } else if (upperCurrency === "UAH") {
+          // Convert UAH to USD: if 1 USD = X UAH, then 1 UAH = 1/X USD
+          priceUSD = priceValue / uahRate;
+        } else {
+          priceUSD = priceValue;
+        }
+
+        // Calculate other currencies from USD
+        priceEUR = priceUSD * eurRate;
+        priceUAH = priceUSD * uahRate;
+
+        // Update data object
+        data.priceUSD = parseFloat(priceUSD.toFixed(2));
+        data.priceEUR = parseFloat(priceEUR.toFixed(2));
+        data.priceUAH = parseFloat(priceUAH.toFixed(2));
 
         console.log(
-          `Auto-calculated prices: USD=${usdPrice}, EUR=${data.priceEUR}, UAH=${data.priceUAH}`
+          `Auto-calculated prices from ${upperCurrency}: ${upperCurrency}=${priceValue}, USD=${data.priceUSD}, EUR=${data.priceEUR}, UAH=${data.priceUAH}`
         );
       }
     } else {
@@ -79,12 +124,24 @@ async function calculatePricesFromUSD(
     }
   } catch (error) {
     console.error(
-      "Error calculating EUR and UAH prices:",
+      `Error calculating prices from ${currency}:`,
       error,
-      "Continuing with USD price only"
+      "Continuing without price calculation"
     );
-    // Continue without EUR/UAH if calculation fails
+    // Continue without price calculation if it fails
   }
+}
+
+/**
+ * Legacy function for backward compatibility
+ * @deprecated Use calculatePricesFromCurrency instead
+ */
+async function calculatePricesFromUSD(
+  strapi: any,
+  priceUSD: number | string | undefined | null,
+  data: any
+): Promise<void> {
+  await calculatePricesFromCurrency(strapi, priceUSD, "USD", data);
 }
 
 /**
@@ -617,12 +674,30 @@ export default factories.createCoreController(
           cleanedData.status = String(cleanedData.status).trim().toLowerCase();
         }
 
-        // Auto-calculate EUR and UAH prices from USD if priceUSD is provided
-        await calculatePricesFromUSD(
-          strapi,
-          cleanedData.priceUSD as number | string | undefined | null,
-          cleanedData
-        );
+        // Auto-calculate prices in all currencies from the provided currency
+        // Support both new format (price + currency) and legacy format (priceUSD)
+        if (
+          cleanedData.price !== undefined &&
+          cleanedData.currency !== undefined
+        ) {
+          // New format: price + currency
+          await calculatePricesFromCurrency(
+            strapi,
+            cleanedData.price as number | string | undefined | null,
+            cleanedData.currency as string | undefined | null,
+            cleanedData
+          );
+          // Remove price and currency from data as they are not stored in DB
+          delete cleanedData.price;
+          delete cleanedData.currency;
+        } else if (cleanedData.priceUSD !== undefined) {
+          // Legacy format: priceUSD (for backward compatibility)
+          await calculatePricesFromUSD(
+            strapi,
+            cleanedData.priceUSD as number | string | undefined | null,
+            cleanedData
+          );
+        }
 
         const productData: any = {
           ...cleanedData,
@@ -1081,8 +1156,21 @@ export default factories.createCoreController(
           data.slug = await generateUniqueSlug(strapi, data.title, productId);
         }
 
-        // Auto-calculate EUR and UAH prices from USD if priceUSD is provided or updated
-        if (data.priceUSD !== undefined) {
+        // Auto-calculate prices in all currencies from the provided currency
+        // Support both new format (price + currency) and legacy format (priceUSD)
+        if (data.price !== undefined && data.currency !== undefined) {
+          // New format: price + currency
+          await calculatePricesFromCurrency(
+            strapi,
+            data.price as number | string | undefined | null,
+            data.currency as string | undefined | null,
+            data
+          );
+          // Remove price and currency from data as they are not stored in DB
+          delete data.price;
+          delete data.currency;
+        } else if (data.priceUSD !== undefined) {
+          // Legacy format: priceUSD (for backward compatibility)
           await calculatePricesFromUSD(strapi, data.priceUSD, data);
         }
 
