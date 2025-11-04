@@ -199,7 +199,77 @@ export default factories.createCoreController(
           const chatWithProduct = validChats.find(
             (chat) => (chat as any).product?.id === productId
           );
+
+          // Если найден чат с тем же товаром, проверяем, есть ли пользовательские сообщения
           if (chatWithProduct) {
+            // Проверяем, есть ли пользовательские (не системные) сообщения в чате
+            const userMessages = await strapi.entityService.findMany(
+              "api::message.message",
+              {
+                filters: {
+                  chat: chatWithProduct.id,
+                  isSystem: false,
+                } as any,
+                limit: 1,
+              }
+            );
+
+            // Если нет пользовательских сообщений, проверяем системное сообщение с товаром
+            if (userMessages.length === 0) {
+              // Ищем все системные сообщения с товаром
+              const systemMessagesWithProduct =
+                await strapi.entityService.findMany("api::message.message", {
+                  filters: {
+                    chat: chatWithProduct.id,
+                    isSystem: true,
+                    product: {
+                      id: productId,
+                    },
+                  } as any,
+                });
+
+              // Если есть старое системное сообщение, удаляем его
+              if (systemMessagesWithProduct.length > 0) {
+                for (const oldMessage of systemMessagesWithProduct) {
+                  await strapi.entityService.delete(
+                    "api::message.message",
+                    oldMessage.id
+                  );
+                }
+              }
+
+              // Создаем новое системное сообщение с текущим товаром
+              const product = await strapi.entityService.findOne(
+                "api::product.product",
+                productId,
+                {
+                  populate: {
+                    images: true,
+                  },
+                }
+              );
+
+              if (product) {
+                const systemMessageText = `${(product as any).title}`;
+                await strapi.entityService.create("api::message.message", {
+                  data: {
+                    text: systemMessageText,
+                    chat: { connect: [chatWithProduct.id] } as any,
+                    isSystem: true as any,
+                    product: { connect: [productId] } as any,
+                    isRead: true,
+                  } as any,
+                  populate: {
+                    product: {
+                      populate: {
+                        images: true,
+                      },
+                    },
+                  } as any,
+                });
+              }
+            }
+
             return { data: chatWithProduct };
           }
 
@@ -208,6 +278,42 @@ export default factories.createCoreController(
           const currentProductId = (existingChat as any).product?.id;
 
           if (currentProductId && currentProductId !== productId) {
+            // Проверяем, есть ли пользовательские (не системные) сообщения в чате
+            const userMessages = await strapi.entityService.findMany(
+              "api::message.message",
+              {
+                filters: {
+                  chat: existingChat.id,
+                  isSystem: false,
+                } as any,
+                limit: 1,
+              }
+            );
+
+            // Если нет пользовательских сообщений, удаляем старое системное сообщение с товаром
+            if (userMessages.length === 0) {
+              const oldSystemMessages = await strapi.entityService.findMany(
+                "api::message.message",
+                {
+                  filters: {
+                    chat: existingChat.id,
+                    isSystem: true,
+                    product: {
+                      id: currentProductId,
+                    },
+                  } as any,
+                }
+              );
+
+              // Удаляем все старые системные сообщения с товаром
+              for (const oldMessage of oldSystemMessages) {
+                await strapi.entityService.delete(
+                  "api::message.message",
+                  oldMessage.id
+                );
+              }
+            }
+
             // Обновляем товар в чате
             const updatedChat = await strapi.entityService.update(
               "api::chat.chat",
@@ -296,6 +402,44 @@ export default factories.createCoreController(
 
           // Если чат без товара, но указан новый товар - добавляем товар и создаем системное сообщение
           if (productId && !(existingChat as any).product) {
+            // Проверяем, есть ли пользовательские (не системные) сообщения в чате
+            const userMessages = await strapi.entityService.findMany(
+              "api::message.message",
+              {
+                filters: {
+                  chat: existingChat.id,
+                  isSystem: false,
+                } as any,
+                limit: 1,
+              }
+            );
+
+            // Если нет пользовательских сообщений, удаляем все старые системные сообщения с товаром
+            if (userMessages.length === 0) {
+              const oldSystemMessages = await strapi.entityService.findMany(
+                "api::message.message",
+                {
+                  filters: {
+                    chat: existingChat.id,
+                    isSystem: true,
+                  } as any,
+                  populate: {
+                    product: true,
+                  },
+                }
+              );
+
+              // Удаляем все старые системные сообщения с товаром
+              for (const oldMessage of oldSystemMessages) {
+                if ((oldMessage as any).product) {
+                  await strapi.entityService.delete(
+                    "api::message.message",
+                    oldMessage.id
+                  );
+                }
+              }
+            }
+
             // Обновляем товар в чате
             const updatedChat = await strapi.entityService.update(
               "api::chat.chat",

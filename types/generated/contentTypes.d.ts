@@ -698,6 +698,8 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     draftAndPublish: true;
   };
   attributes: {
+    activityStatus: Schema.Attribute.Enumeration<['active', 'archived']> &
+      Schema.Attribute.DefaultTo<'active'>;
     attributesJson: Schema.Attribute.JSON;
     category: Schema.Attribute.Relation<'manyToOne', 'api::category.category'>;
     certificates: Schema.Attribute.Relation<
@@ -753,7 +755,9 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     >;
     sku: Schema.Attribute.String & Schema.Attribute.Unique;
     slug: Schema.Attribute.UID<'title'>;
-    status: Schema.Attribute.Enumeration<['available', 'unavailable']> &
+    status: Schema.Attribute.Enumeration<
+      ['available', 'unavailable', 'preorder']
+    > &
       Schema.Attribute.DefaultTo<'available'>;
     tags: Schema.Attribute.Relation<'manyToMany', 'api::tag.tag'>;
     title: Schema.Attribute.String &

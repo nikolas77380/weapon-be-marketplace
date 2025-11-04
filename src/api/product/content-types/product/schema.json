@@ -74,7 +74,16 @@
       "default": "available",
       "enum": [
         "available",
-        "unavailable"
+        "unavailable",
+        "preorder"
+      ]
+    },
+    "activityStatus": {
+      "type": "enumeration",
+      "default": "active",
+      "enum": [
+        "active",
+        "archived"
       ]
     },
     "attributesJson": {
