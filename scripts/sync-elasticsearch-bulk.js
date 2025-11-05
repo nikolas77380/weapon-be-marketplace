@@ -2,15 +2,16 @@ const { Client } = require("@elastic/elasticsearch");
 const { createStrapi } = require("@strapi/strapi");
 const path = require("path");
 
-// Elasticsearch client configuration for Elastic Cloud
+// Elasticsearch client configuration
 const createElasticsearchClient = () => {
-  const node =
-    process.env.ELASTICSEARCH_URL ||
-    "https://your-cluster.es.region.aws.found.io:9243";
+  const node = process.env.ELASTICSEARCH_URL || "http://localhost:9200";
   const isProduction = process.env.NODE_ENV === "production";
 
-  if (isProduction && process.env.ELASTICSEARCH_API_KEY) {
-    // Production configuration with API key for Elastic Cloud
+  console.log(`🌐 Target: ${node}`);
+  console.log(`📋 Index: ${process.env.ELASTICSEARCH_INDEX || "products"}`);
+
+  // If API key is provided, use it (for Elastic Cloud or secured instances)
+  if (process.env.ELASTICSEARCH_API_KEY) {
     return new Client({
       node: node,
       auth: {
@@ -18,14 +19,23 @@ const createElasticsearchClient = () => {
       },
     });
   } else {
-    // Local development configuration
-    return new Client({
+    // Local development configuration or basic auth
+    const clientConfig = {
       node: node,
-      auth: {
+    };
+
+    // Only add auth if credentials are provided
+    if (
+      process.env.ELASTICSEARCH_USERNAME ||
+      process.env.ELASTICSEARCH_PASSWORD
+    ) {
+      clientConfig.auth = {
         username: process.env.ELASTICSEARCH_USERNAME || "elastic",
         password: process.env.ELASTICSEARCH_PASSWORD || "changeme",
-      },
-    });
+      };
+    }
+
+    return new Client(clientConfig);
   }
 };
 
@@ -104,6 +114,8 @@ const productMapping = {
         id: { type: "integer" },
         username: { type: "keyword" },
         email: { type: "keyword" },
+        avatarUrl: { type: "keyword" },
+        country: { type: "keyword" },
         metadata: {
           properties: {
             companyName: { type: "text" },
@@ -187,7 +199,11 @@ async function syncProductsBulk() {
         tags: true,
         seller: {
           populate: {
-            metadata: true,
+            metadata: {
+              populate: {
+                avatar: true,
+              },
+            },
           },
         },
         images: true,
@@ -280,6 +296,8 @@ async function syncProductsBulk() {
                   id: product.seller.id,
                   username: product.seller.username,
                   email: product.seller.email,
+                  avatarUrl: product.seller.metadata?.avatar?.url || null,
+                  country: product.seller.metadata?.country || null,
                   metadata: product.seller.metadata
                     ? {
                         companyName: product.seller.metadata.companyName,
@@ -299,12 +317,9 @@ async function syncProductsBulk() {
               : [],
             // No complex subcategories - will be handled in Strapi search logic
             attributesJson: product.attributesJson || {},
-            availability:
-              product.availability ||
-              product.attributesJson?.availability ||
-              "in_stock",
-            condition:
-              product.condition || product.attributesJson?.condition || "new",
+            status: product.status || "available",
+            condition: product.condition || "new",
+            videoUrl: product.videoUrl || null,
           };
 
           // Log category info for debugging

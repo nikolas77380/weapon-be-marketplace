@@ -24,7 +24,11 @@ module.exports = {
             tags: true,
             seller: {
               populate: {
-                metadata: true,
+                metadata: {
+                  populate: {
+                    avatar: true,
+                  },
+                },
               },
             },
             images: true,
@@ -104,7 +108,11 @@ module.exports = {
             tags: true,
             seller: {
               populate: {
-                metadata: true,
+                metadata: {
+                  populate: {
+                    avatar: true,
+                  },
+                },
               },
             },
             images: true,

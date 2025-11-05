@@ -4,6 +4,13 @@
 
 import { factories } from "@strapi/strapi";
 
+// In-memory cache for currency rates (1 hour TTL)
+let cachedRates: {
+  rates: any;
+  timestamp: number;
+} | null = null;
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
+
 export default factories.createCoreService(
   "api::currency-rate.currency-rate" as any,
   ({ strapi }) => {
@@ -96,6 +103,13 @@ export default factories.createCoreService(
     };
 
     const getLatestRatesOrUpdate = async (apiKey?: string) => {
+      // Check memory cache first (fast path)
+      const now = Date.now();
+      if (cachedRates && now - cachedRates.timestamp < CACHE_TTL) {
+        return cachedRates.rates;
+      }
+
+      // Check if update is needed (slower, but cached check)
       const shouldUpdate = await needsUpdate();
 
       if (shouldUpdate && apiKey) {
@@ -105,14 +119,31 @@ export default factories.createCoreService(
           );
           const rates = await fetchCurrencyRates(apiKey);
           await upsertRates(rates);
-          console.log("Currency rates updated from fixer.io");
+
+          // Update memory cache
+          const latestRates = await getLatestRates();
+          if (latestRates) {
+            cachedRates = {
+              rates: latestRates,
+              timestamp: now,
+            };
+            return latestRates;
+          }
         } catch (error) {
           console.error("Failed to update currency rates from API:", error);
           // Continue to return existing rates even if update failed
         }
       }
 
-      return await getLatestRates();
+      // Get latest rates from DB and cache them
+      const latestRates = await getLatestRates();
+      if (latestRates) {
+        cachedRates = {
+          rates: latestRates,
+          timestamp: now,
+        };
+      }
+      return latestRates;
     };
 
     return {

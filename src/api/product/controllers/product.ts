@@ -16,7 +16,7 @@ const getAnonymousUserId = (ctx) => {
   return `anon_${fingerprint}`;
 };
 import { generateUniqueSlug } from "../../../utils/slug";
-import { indexProduct } from "../../../utils/elasticsearch";
+// Elasticsearch indexing is handled in lifecycle hook (afterCreate)
 
 // Функция для рекурсивного получения всех дочерних категорий
 const getAllChildCategoryIds = async (strapi, categoryId) => {
@@ -145,7 +145,7 @@ async function calculatePricesFromUSD(
 }
 
 /**
- * Helper function to filter seller fields, returning only id, username, and companyName
+ * Helper function to filter seller fields, returning only id, username, companyName, avatarUrl, and country
  */
 function filterSellerFields(seller: any): any {
   if (!seller) {
@@ -160,6 +160,17 @@ function filterSellerFields(seller: any): any {
   // Get companyName from metadata if available
   if (seller.metadata && seller.metadata.companyName) {
     filteredSeller.companyName = seller.metadata.companyName;
+  }
+
+  // Get avatarUrl from metadata if available
+  if (seller.metadata && seller.metadata.avatar?.url) {
+    filteredSeller.avatarUrl = seller.metadata.avatar.url;
+    filteredSeller.avatar = seller.metadata.avatar;
+  }
+
+  // Get country from metadata if available
+  if (seller.metadata && seller.metadata.country) {
+    filteredSeller.country = seller.metadata.country;
   }
 
   return filteredSeller;
@@ -232,7 +243,11 @@ export default factories.createCoreController(
           tags: true,
           seller: {
             populate: {
-              metadata: true,
+              metadata: {
+                populate: {
+                  avatar: true,
+                },
+              },
             },
           },
           images: true,
@@ -548,13 +563,7 @@ export default factories.createCoreController(
           data = ctx.request.body;
         }
 
-        console.log(
-          "Original data from request:",
-          JSON.stringify(data, null, 2)
-        );
-        console.log("Request headers:", ctx.request.headers);
-        console.log("Request URL:", ctx.request.url);
-        console.log("Request method:", ctx.request.method);
+        // Log original data (reduced logging for performance)
 
         // Handle admin panel format for relations
         if (
@@ -741,52 +750,43 @@ export default factories.createCoreController(
             tags: true,
             seller: {
               populate: {
-                metadata: true,
+                metadata: {
+                  populate: {
+                    avatar: true,
+                  },
+                },
               },
             },
             images: true,
           },
         };
 
-        console.log("Creating product without files first...");
         const product = await strapi.entityService.create(
           "api::product.product",
           createOptions
         );
 
-        console.log("Created product:", product);
-
         if (ctx.request.files && ctx.request.files["files.images"]) {
-          console.log("Uploading files separately...");
-
           const files = ctx.request.files["files.images"];
-          const uploadedFiles = [];
+          const filesArray = Array.isArray(files) ? files : [files];
 
-          for (const file of Array.isArray(files) ? files : [files]) {
-            console.log(
-              "Uploading file:",
-              (file as any).name,
-              (file as any).size
-            );
-            const uploadedFile =
-              await strapi.plugins.upload.services.upload.upload({
-                data: {
-                  refId: product.id,
-                  ref: "api::product.product",
-                  field: "images",
-                },
-                files: file,
-              });
-            uploadedFiles.push(uploadedFile);
-          }
+          // Upload images in parallel for better performance
+          const uploadPromises = filesArray.map((file) =>
+            strapi.plugins.upload.services.upload.upload({
+              data: {
+                refId: product.id,
+                ref: "api::product.product",
+                field: "images",
+              },
+              files: file,
+            })
+          );
 
-          console.log("Uploaded files:", uploadedFiles);
-
+          const uploadedFiles = await Promise.all(uploadPromises);
           const fileIds = uploadedFiles.flat().map((file) => file.id);
-          console.log("File IDs to link:", fileIds);
 
           if (fileIds.length > 0) {
-            const updateResult = await strapi.entityService.update(
+            await strapi.entityService.update(
               "api::product.product",
               product.id,
               {
@@ -795,35 +795,11 @@ export default factories.createCoreController(
                 },
               }
             );
-
-            console.log("Product updated with file IDs:", updateResult);
           }
         }
 
-        // Index product in Elasticsearch
-        try {
-          console.log("🔍 Attempting to index product in Elasticsearch...");
-          console.log(`📦 Product data for indexing:`, {
-            id: product.id,
-            title: (product as any).title,
-            category: (product as any).category?.name,
-            seller: (product as any).seller?.id,
-            imagesCount: (product as any).images?.length || 0,
-            tagsCount: (product as any).tags?.length || 0,
-          });
-          await indexProduct(product);
-          console.log(
-            `✅ Product ${product.id} successfully indexed in Elasticsearch from controller`
-          );
-        } catch (elasticError: any) {
-          console.error("❌ Error indexing product in Elasticsearch:", {
-            message: elasticError?.message,
-            stack: elasticError?.stack,
-            name: elasticError?.name,
-            meta: elasticError?.meta,
-          });
-          // Don't fail the request if Elasticsearch indexing fails
-        }
+        // Elasticsearch indexing is handled in lifecycle hook (afterCreate)
+        // to avoid double indexing and ensure consistency
 
         console.log("=== PRODUCT CREATE CONTROLLER SUCCESS ===");
 
@@ -854,7 +830,11 @@ export default factories.createCoreController(
           tags: true,
           seller: {
             populate: {
-              metadata: true,
+              metadata: {
+                populate: {
+                  avatar: true,
+                },
+              },
             },
           },
           images: true,
@@ -1299,7 +1279,11 @@ export default factories.createCoreController(
           tags: true,
           seller: {
             populate: {
-              metadata: true,
+              metadata: {
+                populate: {
+                  avatar: true,
+                },
+              },
             },
           },
           images: true,
@@ -1416,7 +1400,11 @@ export default factories.createCoreController(
           tags: true,
           seller: {
             populate: {
-              metadata: true,
+              metadata: {
+                populate: {
+                  avatar: true,
+                },
+              },
             },
           },
           images: true,
@@ -1840,7 +1828,11 @@ export default factories.createCoreController(
           tags: true,
           seller: {
             populate: {
-              metadata: true,
+              metadata: {
+                populate: {
+                  avatar: true,
+                },
+              },
             },
           },
           images: true,

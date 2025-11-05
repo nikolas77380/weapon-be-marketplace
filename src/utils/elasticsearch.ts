@@ -100,6 +100,8 @@ export const productMapping: any = {
         id: { type: "integer" },
         username: { type: "keyword" },
         email: { type: "keyword" },
+        avatarUrl: { type: "keyword" },
+        country: { type: "keyword" },
         metadata: {
           properties: {
             companyName: { type: "text" },
@@ -264,6 +266,8 @@ export async function indexProduct(product: any) {
             id: product.seller.id,
             username: product.seller.username,
             email: product.seller.email,
+            avatarUrl: product.seller.metadata?.avatar?.url || null,
+            country: product.seller.metadata?.country || null,
             metadata: product.seller.metadata
               ? {
                   companyName: product.seller.metadata.companyName,
