@@ -373,6 +373,16 @@ export default factories.createCoreController(
           delete filters.priceRange;
         }
 
+        // Handle ID filter with $in operator and maintain order
+        let productIds: number[] | undefined;
+        if (filters.id && (filters.id as any).$in) {
+          const idsIn = (filters.id as any).$in;
+          // Handle both array and single value
+          productIds = Array.isArray(idsIn)
+            ? idsIn.map((id: any) => Number(id))
+            : [Number(idsIn)];
+        }
+
         const totalCount = await strapi.entityService.count(
           "api::product.product",
           {
@@ -382,16 +392,48 @@ export default factories.createCoreController(
 
         console.log("Product count with filters:", totalCount);
 
-        const products = await strapi.entityService.findMany(
+        // Parse sort parameter - support both string "field:order" and array format
+        let sortParam: any = undefined;
+        if (!productIds && query.sort) {
+          if (typeof query.sort === "string") {
+            // Parse string format "field:order" to array format [{field: "order"}]
+            const [field, order] = query.sort.split(":");
+            if (field && order) {
+              sortParam = [{ [field]: order }];
+            }
+          } else {
+            sortParam = query.sort;
+          }
+        }
+
+        // If filtering by IDs, get all matching products first (no pagination), then sort
+        let products = await strapi.entityService.findMany(
           "api::product.product",
           {
             filters,
-            sort: query.sort,
+            sort: sortParam, // Use parsed sort parameter
             populate,
-            start: (page - 1) * pageSize,
-            limit: pageSize,
+            start: productIds ? 0 : (page - 1) * pageSize,
+            limit: productIds ? undefined : pageSize, // Get all if filtering by IDs
           }
         );
+
+        // If filtering by IDs, maintain the order from the IDs array
+        let finalTotalCount = totalCount;
+        if (productIds && productIds.length > 0) {
+          const productMap = new Map(products.map((p: any) => [p.id, p]));
+          // Maintain the order from the IDs array (only include products that were found)
+          const orderedProducts = productIds
+            .map((id) => productMap.get(id))
+            .filter((p): p is any => p !== undefined);
+
+          // Update total count to actual number of found products
+          finalTotalCount = orderedProducts.length;
+
+          // Apply pagination after ordering
+          const start = (page - 1) * pageSize;
+          products = orderedProducts.slice(start, start + pageSize);
+        }
 
         console.log("Products returned:", products.length);
         console.log(
@@ -399,7 +441,7 @@ export default factories.createCoreController(
           products.map((p) => ({ id: p.id, status: p.status, title: p.title }))
         );
 
-        const pageCount = Math.ceil(totalCount / pageSize);
+        const pageCount = Math.ceil(finalTotalCount / pageSize);
 
         // Sanitize seller fields in products
         const sanitizedProducts = sanitizeProducts(products);
@@ -411,7 +453,7 @@ export default factories.createCoreController(
               page,
               pageSize,
               pageCount,
-              total: totalCount,
+              total: finalTotalCount,
             },
           },
         });

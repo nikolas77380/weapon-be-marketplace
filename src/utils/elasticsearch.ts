@@ -7,7 +7,19 @@ import {
 // Elasticsearch client configuration
 // Prefer API key auth whenever provided; otherwise fall back to basic auth
 const createElasticsearchClient = () => {
-  const node = process.env.ELASTICSEARCH_URL || "http://localhost:9200";
+  let node = process.env.ELASTICSEARCH_URL || "http://localhost:9200";
+
+  // Ensure URL has a protocol
+  if (node && !node.match(/^https?:\/\//i)) {
+    // If no protocol specified, default to http://
+    // Check if it looks like a port is specified (contains :)
+    if (node.includes(":")) {
+      node = `http://${node}`;
+    } else {
+      // No port specified, add default port
+      node = `http://${node}:9200`;
+    }
+  }
 
   if (process.env.ELASTICSEARCH_API_KEY) {
     return new Client({
