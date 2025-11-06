@@ -480,7 +480,11 @@ export default factories.createCoreController(
               tags: true,
               seller: {
                 populate: {
-                  metadata: true,
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
+                  },
                 },
               },
               images: true,
@@ -996,7 +1000,11 @@ export default factories.createCoreController(
               tags: true,
               seller: {
                 populate: {
-                  metadata: true,
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
+                  },
                 },
               },
               images: true,
@@ -1207,7 +1215,11 @@ export default factories.createCoreController(
             tags: true,
             seller: {
               populate: {
-                metadata: true,
+                metadata: {
+                  populate: {
+                    avatar: true,
+                  },
+                },
               },
             },
             images: true,
@@ -1266,7 +1278,11 @@ export default factories.createCoreController(
             populate: {
               seller: {
                 populate: {
-                  metadata: true,
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
+                  },
                 },
               },
             },
