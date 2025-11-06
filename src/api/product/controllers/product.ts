@@ -1840,27 +1840,6 @@ export default factories.createCoreController(
     async getTopProductsByCategories(ctx) {
       const startTime = Date.now();
       try {
-        // Получаем все основные категории (где parent = null)
-        const mainCategories = await strapi.entityService.findMany(
-          "api::category.category",
-          {
-            filters: {
-              parent: null,
-            } as any,
-            fields: ["id", "name", "slug"],
-          }
-        );
-
-        if (!mainCategories || mainCategories.length === 0) {
-          return ctx.send({
-            data: [],
-          });
-        }
-
-        console.log(
-          `Getting top products for ${mainCategories.length} categories`
-        );
-
         const populate = {
           category: {
             populate: {
@@ -1880,75 +1859,57 @@ export default factories.createCoreController(
           images: true,
         };
 
-        // Функция для получения топ продукта категории
-        const getTopProduct = async (mainCategory: any) => {
-          try {
-            // Получаем все дочерние категории рекурсивно
-            const childCategoryIds = await getAllChildCategoryIds(
-              strapi,
-              mainCategory.id
-            );
-            const allCategoryIds = [mainCategory.id, ...childCategoryIds];
-
-            // Получаем топ продукт по просмотрам для этой категории и всех дочерних
-            const products = await strapi.entityService.findMany(
-              "api::product.product",
-              {
-                filters: {
-                  category: {
-                    $in: allCategoryIds,
-                  } as any,
-                  status: {
-                    $eq: "available",
-                  },
-                },
-                sort: [{ viewsCount: "desc" }],
-                populate,
-                limit: 1,
-              }
-            );
-
-            if (!products || products.length === 0) {
-              return null;
-            }
-
-            return products[0];
-          } catch (error) {
-            console.error(
-              `Error fetching top product for category ${mainCategory.id}:`,
-              error
-            );
-            return null;
+        // Получаем продукты, отсортированные по просмотрам
+        // Берем больше, чем нужно, чтобы потом отфильтровать по уникальным категориям
+        const allProducts = await strapi.entityService.findMany(
+          "api::product.product",
+          {
+            filters: {
+              status: {
+                $eq: "available",
+              },
+            },
+            sort: [{ viewsCount: "desc" }],
+            populate,
+            limit: 100, // Берем топ 100, чтобы точно покрыть все категории
           }
-        };
+        );
 
-        // Создаем промисы с таймаутом для каждой категории
-        const promises = mainCategories.map((mainCategory, index) => {
-          return Promise.race([
-            getTopProduct(mainCategory),
-            new Promise(
-              (resolve) =>
-                setTimeout(() => {
-                  console.log(
-                    `Timeout for category ${mainCategory.id} (${mainCategory.name})`
-                  );
-                  resolve(null);
-                }, 5000) // 5 секунд таймаут на категорию
-            ),
-          ]).catch(() => null);
-        });
+        if (!allProducts || allProducts.length === 0) {
+          return ctx.send({
+            data: [],
+          });
+        }
 
-        // Используем Promise.allSettled чтобы получить результаты даже если некоторые упали
-        const results = await Promise.allSettled(promises);
-        const topProducts = results
-          .map((result) =>
-            result.status === "fulfilled" ? result.value : null
-          )
-          .filter(Boolean);
+        // Фильтруем продукты, оставляя только один продукт на категорию (самый популярный)
+        const categoryMap = new Map();
+        const topProducts: any[] = [];
+
+        for (const product of allProducts) {
+          const productAny = product as any;
+          const categoryId = productAny.category?.id;
+
+          // Пропускаем продукты без категории
+          if (!categoryId) {
+            continue;
+          }
+
+          // Если для этой категории еще нет продукта, добавляем его
+          if (!categoryMap.has(categoryId)) {
+            categoryMap.set(categoryId, true);
+            topProducts.push(product);
+          }
+
+          // Останавливаемся, когда набрали достаточно продуктов
+          // (по количеству основных категорий или лимиту)
+          if (topProducts.length >= 50) {
+            break;
+          }
+        }
 
         const endTime = Date.now();
         console.log(
-          `Top products fetched in ${endTime - startTime}ms, found ${topProducts.length} products`
+          `Top products fetched in ${endTime - startTime}ms, found ${topProducts.length} products from ${allProducts.length} total`
         );
 
         // Sanitize seller fields
