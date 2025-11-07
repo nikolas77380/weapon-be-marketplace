@@ -55,16 +55,21 @@ export default factories.createCoreController(
         sort: { updatedAt: "desc" },
       });
 
-      // Для каждого чата проверяем наличие непрочитанных сообщений
-      const chatsWithUnreadStatus = await Promise.all(
-        chats.map(async (chat) => {
-          // Проверяем наличие непрочитанных сообщений в этом чате
+      // Оптимизированная проверка непрочитанных сообщений - одним запросом для всех чатов
+      const chatIds = chats.map((chat) => chat.id);
+      let unreadChatIds = new Set<number>();
+
+      if (chatIds.length > 0) {
+        try {
+          // Получаем все непрочитанные сообщения для всех чатов одним запросом
           const unreadMessages = await strapi.entityService.findMany(
             "api::message.message",
             {
               filters: {
                 chat: {
-                  id: chat.id,
+                  id: {
+                    $in: chatIds,
+                  },
                 },
                 sender: {
                   id: {
@@ -73,16 +78,42 @@ export default factories.createCoreController(
                 },
                 isRead: false,
               },
-              limit: 1, // Нам нужно только проверить наличие, не загружать все
+              populate: {
+                chat: {
+                  fields: ["id"],
+                },
+              },
+              limit: 10000, // Достаточно для определения наличия непрочитанных
             }
           );
 
-          return {
-            ...chat,
-            hasUnreadMessages: unreadMessages.length > 0,
-          };
-        })
-      );
+          // Собираем ID чатов с непрочитанными сообщениями
+          unreadMessages.forEach((msg: any) => {
+            if (msg.chat?.id) {
+              const chatId =
+                typeof msg.chat.id === "string"
+                  ? parseInt(msg.chat.id, 10)
+                  : msg.chat.id;
+              if (!isNaN(chatId)) {
+                unreadChatIds.add(chatId);
+              }
+            }
+          });
+        } catch (error) {
+          console.error("Error checking unread messages:", error);
+          // В случае ошибки продолжаем без информации о непрочитанных
+        }
+      }
+
+      // Добавляем флаг hasUnreadMessages к каждому чату
+      const chatsWithUnreadStatus = chats.map((chat) => {
+        const chatId =
+          typeof chat.id === "string" ? parseInt(chat.id, 10) : chat.id;
+        return {
+          ...chat,
+          hasUnreadMessages: unreadChatIds.has(chatId),
+        };
+      });
 
       return { data: chatsWithUnreadStatus };
     },
@@ -96,43 +127,57 @@ export default factories.createCoreController(
         return ctx.unauthorized("You must be authenticated");
       }
 
-      // Получаем сообщения напрямую из модели messages
-      const messages = await strapi.entityService.findMany(
-        "api::message.message",
-        {
-          filters: {
-            chat: id,
-          },
-          populate: {
-            sender: {
-              populate: {
-                metadata: {
-                  populate: {
-                    avatar: true,
-                  },
-                },
-              },
-            },
-            readBy: {
-              populate: {
-                metadata: {
-                  populate: {
-                    avatar: true,
-                  },
-                },
-              },
-            },
-            product: {
-              populate: {
-                images: true,
-              },
-            },
-          },
-          sort: { createdAt: "asc" },
-        }
-      );
+      try {
+        // Получаем сообщения напрямую из модели messages
+        // Ограничиваем количество сообщений для предотвращения таймаутов
+        const limit = parseInt(ctx.query.limit as string) || 200; // По умолчанию последние 200 сообщений
+        const start = parseInt(ctx.query.start as string) || 0;
 
-      return { data: messages };
+        const messages = await strapi.entityService.findMany(
+          "api::message.message",
+          {
+            filters: {
+              chat: id,
+            },
+            populate: {
+              sender: {
+                populate: {
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
+                  },
+                },
+              },
+              readBy: {
+                populate: {
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
+                  },
+                },
+              },
+              product: {
+                populate: {
+                  images: true,
+                },
+              },
+            },
+            sort: { createdAt: "desc" }, // Сначала новые, потом берем limit
+            limit: limit,
+            start: start,
+          }
+        );
+
+        // Возвращаем в правильном порядке (старые -> новые)
+        const sortedMessages = messages.reverse();
+
+        return { data: sortedMessages };
+      } catch (error) {
+        console.error("Error fetching chat messages:", error);
+        ctx.throw(500, "Failed to fetch messages");
+      }
     },
 
     // Создание нового чата или возврат существующего

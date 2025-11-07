@@ -120,59 +120,73 @@ export default factories.createCoreController(
       //   return ctx.unauthorized("You must be authenticated");
       // }
 
-      // Проверяем, является ли пользователь участником чата
-      const chat = await strapi.entityService.findOne(
-        "api::chat.chat",
-        chatId,
-        {
-          populate: {
-            participants: true,
-          },
+      try {
+        // Проверяем, является ли пользователь участником чата
+        const chat = await strapi.entityService.findOne(
+          "api::chat.chat",
+          chatId,
+          {
+            populate: {
+              participants: true,
+            },
+          }
+        );
+
+        if (!chat) {
+          return ctx.notFound("Chat not found");
         }
-      );
 
-      if (!chat) {
-        return ctx.notFound("Chat not found");
-      }
+        const isParticipant = (chat as any).participants?.some(
+          (p: any) => p.id === user?.id || 1
+        );
+        if (!isParticipant) {
+          return ctx.forbidden("You are not a participant of this chat");
+        }
 
-      const isParticipant = (chat as any).participants?.some(
-        (p: any) => p.id === user?.id || 1
-      );
-      if (!isParticipant) {
-        return ctx.forbidden("You are not a participant of this chat");
-      }
+        // Ограничиваем количество сообщений для предотвращения таймаутов
+        const limit = parseInt(ctx.query.limit as string) || 200; // По умолчанию последние 200 сообщений
+        const start = parseInt(ctx.query.start as string) || 0;
 
-      const messages = await strapi.entityService.findMany(
-        "api::message.message",
-        {
-          filters: {
-            chat: chatId,
-          },
-          populate: {
-            sender: {
-              populate: {
-                metadata: {
-                  populate: {
-                    avatar: true,
+        const messages = await strapi.entityService.findMany(
+          "api::message.message",
+          {
+            filters: {
+              chat: chatId,
+            },
+            populate: {
+              sender: {
+                populate: {
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
+                  },
+                },
+              },
+              readBy: {
+                populate: {
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
                   },
                 },
               },
             },
-            readBy: {
-              populate: {
-                metadata: {
-                  populate: {
-                    avatar: true,
-                  },
-                },
-              },
-            },
-          },
-          sort: { createdAt: "asc" },
-        }
-      );
+            sort: { createdAt: "desc" }, // Сначала новые, потом берем limit
+            limit: limit,
+            start: start,
+          }
+        );
 
-      return { data: messages };
+        // Возвращаем в правильном порядке (старые -> новые)
+        const sortedMessages = messages.reverse();
+
+        return { data: sortedMessages };
+      } catch (error) {
+        console.error("Error fetching chat messages:", error);
+        ctx.throw(500, "Failed to fetch messages");
+      }
     },
 
     // Отметка сообщений как прочитанных
