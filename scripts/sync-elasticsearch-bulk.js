@@ -67,6 +67,7 @@ const productMapping = {
     priceUAH: { type: "float" },
     currency: { type: "keyword" },
     status: { type: "keyword" },
+    activityStatus: { type: "keyword" },
     viewsCount: { type: "integer" },
     createdAt: { type: "date" },
     updatedAt: { type: "date" },
@@ -207,6 +208,7 @@ async function syncProductsBulk() {
           },
         },
         images: true,
+        subcategories: true,
       },
       limit: -1, // Get all products
       // No filters - sync ALL products regardless of status
@@ -231,6 +233,7 @@ async function syncProductsBulk() {
         `   Parent: ${product.category?.parent?.name || "No parent"} (ID: ${product.category?.parent?.id || "No ID"})`
       );
       console.log(`   Status: ${product.status}`);
+      console.log(`   Activity Status: ${product.activityStatus || "active"}`);
       console.log(`   Published: ${product.publishedAt ? "Yes" : "No"}`);
     });
 
@@ -273,6 +276,12 @@ async function syncProductsBulk() {
             priceUAH: product.priceUAH ?? 0,
             currency: product.currency || "USD",
             status: product.status,
+            // Preserve activityStatus exactly as it is (including "archived", null, undefined)
+            activityStatus:
+              product.activityStatus !== undefined &&
+              product.activityStatus !== null
+                ? product.activityStatus
+                : "active",
             viewsCount: product.viewsCount || 0,
             createdAt: product.createdAt,
             updatedAt: product.updatedAt,
@@ -317,7 +326,6 @@ async function syncProductsBulk() {
               : [],
             // No complex subcategories - will be handled in Strapi search logic
             attributesJson: product.attributesJson || {},
-            status: product.status || "available",
             condition: product.condition || "new",
             videoUrl: product.videoUrl || null,
           };
@@ -331,6 +339,8 @@ async function syncProductsBulk() {
           );
           console.log(`   Category Slug: ${document.categorySlug}`);
           console.log(`   Parent Slug: ${document.parentCategorySlug}`);
+          console.log(`   Status: ${document.status}`);
+          console.log(`   Activity Status: ${document.activityStatus}`);
 
           // Add to bulk body
           bulkBody.push({
@@ -349,6 +359,9 @@ async function syncProductsBulk() {
             `   Category: ${product.category?.name || "No category"}`
           );
           console.error(`   Status: ${product.status}`);
+          console.error(
+            `   Activity Status: ${product.activityStatus || "active"}`
+          );
           // Continue processing other products even if one fails
         }
       }

@@ -65,6 +65,7 @@ export const productMapping: any = {
     priceUAH: { type: "float" },
     currency: { type: "keyword" },
     status: { type: "keyword" },
+    activityStatus: { type: "keyword" },
     viewsCount: { type: "integer" },
     createdAt: { type: "date" },
     updatedAt: { type: "date" },
@@ -240,6 +241,11 @@ export async function indexProduct(product: any) {
       priceUAH: product.priceUAH ?? 0,
       currency: product.currency || "USD",
       status: product.status || "available",
+      // Preserve activityStatus exactly as it is (including "archived", null, undefined)
+      activityStatus:
+        product.activityStatus !== undefined && product.activityStatus !== null
+          ? product.activityStatus
+          : "active",
       viewsCount: product.viewsCount || 0,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
@@ -340,6 +346,8 @@ export async function indexProduct(product: any) {
       seller: document.seller?.username,
       tags: document.tags?.length || 0,
       images: document.images?.length || 0,
+      status: document.status,
+      activityStatus: document.activityStatus,
     });
 
     const result = await client.index({
@@ -429,10 +437,14 @@ export async function searchProducts(query: any, strapi?: any) {
     const searchQuery: any = {
       bool: {
         must: [],
+        must_not: [],
       },
     };
 
-    // No status filtering (return all statuses)
+    // Exclude archived products from search results
+    searchQuery.bool.must_not.push({
+      term: { activityStatus: "archived" },
+    });
 
     // Add text search
     if (searchTerm && searchTerm.trim()) {

@@ -319,6 +319,19 @@ export default factories.createCoreController(
           console.log("Status filter already present:", filters.status);
         }
 
+        // Always exclude archived products unless seller is viewing own products
+        // Override any activityStatus filter from query to prevent showing archived products
+        if (!isSellerViewingOwnProducts) {
+          (filters as any).activityStatus = { $ne: "archived" };
+          console.log("Applying activityStatus filter: excluding archived");
+        } else {
+          // If seller is viewing own products, allow them to see archived products
+          // Remove activityStatus filter if it was set to exclude archived
+          if ((filters as any).activityStatus?.$ne === "archived") {
+            delete (filters as any).activityStatus;
+          }
+        }
+
         console.log("Final filters:", JSON.stringify(filters, null, 2));
 
         // Handle category slug filter
@@ -494,6 +507,41 @@ export default factories.createCoreController(
 
         if (!product) {
           return ctx.notFound("Product not found");
+        }
+
+        // Check if product is archived - if yes, only creator can view it
+        if (product.activityStatus === "archived") {
+          // Try to get authenticated user
+          let authenticatedUser = ctx.state.user;
+          if (!authenticatedUser) {
+            const authHeader = ctx.request.header.authorization;
+            if (authHeader && authHeader.startsWith("Bearer ")) {
+              const token = authHeader.substring(7);
+              try {
+                const { id } =
+                  await strapi.plugins["users-permissions"].services.jwt.verify(
+                    token
+                  );
+                authenticatedUser = await strapi.entityService.findOne(
+                  "plugin::users-permissions.user",
+                  id,
+                  { populate: ["role"] }
+                );
+              } catch (error) {
+                // Invalid token, ignore
+              }
+            }
+          }
+
+          // Check if user is the product creator
+          const isCreator =
+            authenticatedUser &&
+            (product as any).seller &&
+            Number(authenticatedUser.id) === Number((product as any).seller.id);
+
+          if (!isCreator) {
+            return ctx.notFound("Product not found");
+          }
         }
 
         // Трекинг просмотров для публичных пользователей
@@ -891,6 +939,18 @@ export default factories.createCoreController(
 
         const filters = { ...(query.filters as any) };
 
+        // Exclude archived products unless user is viewing their own products
+        const currentUserId = ctx.state.user?.id;
+        const isViewingOwnProducts =
+          currentUserId &&
+          filters.seller &&
+          (Number(filters.seller) === Number(currentUserId) ||
+            Number((filters.seller as any).$eq) === Number(currentUserId));
+
+        if (!isViewingOwnProducts) {
+          (filters as any).activityStatus = { $ne: "archived" };
+        }
+
         // Handle category slug filter for authenticated users
         if ((query.filters as any)?.categorySlug) {
           const categorySlug = (query.filters as any).categorySlug;
@@ -1014,6 +1074,19 @@ export default factories.createCoreController(
 
         if (!product) {
           return ctx.notFound("Product not found");
+        }
+
+        // Check if product is archived - if yes, only creator can view it
+        if ((product as any).activityStatus === "archived") {
+          const currentUserId = ctx.state.user?.id;
+          const isCreator =
+            currentUserId &&
+            (product as any).seller &&
+            Number(currentUserId) === Number((product as any).seller.id);
+
+          if (!isCreator) {
+            return ctx.notFound("Product not found");
+          }
         }
 
         try {
@@ -1239,13 +1312,25 @@ export default factories.createCoreController(
         );
 
         // Update product in Elasticsearch
+        // Note: This is a manual update, but lifecycle hook afterUpdate should also trigger
+        // This ensures update happens even if lifecycle hook fails
         try {
-          await strapi
+          console.log(
+            `🔄 [CONTROLLER] Manually updating product ${productId} in Elasticsearch`
+          );
+          const updatedProduct = await strapi
             .service("api::product.elasticsearch")
             .indexProduct(productId);
+          console.log(
+            `✅ [CONTROLLER] Product ${productId} updated in Elasticsearch:`,
+            {
+              activityStatus: (updatedProduct as any)?.activityStatus,
+              status: (updatedProduct as any)?.status,
+            }
+          );
         } catch (elasticError) {
           console.error(
-            "Error updating product in Elasticsearch:",
+            "❌ [CONTROLLER] Error updating product in Elasticsearch:",
             elasticError
           );
           // Don't fail the request if Elasticsearch indexing fails
@@ -1366,6 +1451,9 @@ export default factories.createCoreController(
               },
             },
           ],
+          activityStatus: {
+            $ne: "archived",
+          },
         };
 
         // Добавляем дополнительные фильтры если они есть
@@ -1491,6 +1579,7 @@ export default factories.createCoreController(
 
         // Enforce public status filter: only available products for public search
         (filters as any).status = { $eq: "available" };
+        (filters as any).activityStatus = { $ne: "archived" };
 
         // Добавляем дополнительные фильтры если они есть
         if ((query.filters as any)?.categorySlug) {
@@ -1883,6 +1972,9 @@ export default factories.createCoreController(
             filters: {
               status: {
                 $eq: "available",
+              },
+              activityStatus: {
+                $ne: "archived",
               },
             },
             sort: [{ viewsCount: "desc" }],

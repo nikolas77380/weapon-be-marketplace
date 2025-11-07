@@ -38,7 +38,11 @@ export default factories.createCoreService(
               tags: true,
               seller: {
                 populate: {
-                  metadata: true,
+                  metadata: {
+                    populate: {
+                      avatar: true,
+                    },
+                  },
                 },
               },
               images: true,
