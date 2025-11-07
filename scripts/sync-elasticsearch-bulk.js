@@ -208,7 +208,6 @@ async function syncProductsBulk() {
           },
         },
         images: true,
-        subcategories: true,
       },
       limit: -1, // Get all products
       // No filters - sync ALL products regardless of status
