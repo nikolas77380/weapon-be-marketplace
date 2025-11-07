@@ -55,7 +55,36 @@ export default factories.createCoreController(
         sort: { updatedAt: "desc" },
       });
 
-      return { data: chats };
+      // Для каждого чата проверяем наличие непрочитанных сообщений
+      const chatsWithUnreadStatus = await Promise.all(
+        chats.map(async (chat) => {
+          // Проверяем наличие непрочитанных сообщений в этом чате
+          const unreadMessages = await strapi.entityService.findMany(
+            "api::message.message",
+            {
+              filters: {
+                chat: {
+                  id: chat.id,
+                },
+                sender: {
+                  id: {
+                    $ne: user.id,
+                  },
+                },
+                isRead: false,
+              },
+              limit: 1, // Нам нужно только проверить наличие, не загружать все
+            }
+          );
+
+          return {
+            ...chat,
+            hasUnreadMessages: unreadMessages.length > 0,
+          };
+        })
+      );
+
+      return { data: chatsWithUnreadStatus };
     },
 
     // Получение конкретного чата с сообщениями
