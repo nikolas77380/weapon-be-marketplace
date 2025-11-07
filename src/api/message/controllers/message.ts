@@ -73,6 +73,14 @@ export default factories.createCoreController(
         }
       );
 
+      // Обновляем updatedAt чата при отправке сообщения
+      // Это важно для правильной сортировки и отображения времени в списке чатов
+      await strapi.entityService.update("api::chat.chat", chatId, {
+        data: {
+          updatedAt: new Date().toISOString(),
+        },
+      });
+
       // Отправляем email уведомления всем участникам чата кроме отправителя
       try {
         const participants = (chat as any).participants || [];
