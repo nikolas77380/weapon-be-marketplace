@@ -49,6 +49,8 @@ export default factories.createCoreController(
         return ctx.badRequest("Cannot send messages to inactive chat");
       }
 
+      // Создаем сообщение - Strapi автоматически установит createdAt и updatedAt серверным временем
+      // Не передаем createdAt явно, чтобы гарантировать использование серверного времени
       const message = await strapi.entityService.create(
         "api::message.message",
         {
@@ -57,6 +59,7 @@ export default factories.createCoreController(
             sender: { connect: [user?.id] } as any,
             chat: { connect: [chatId] } as any,
             isRead: false,
+            // createdAt и updatedAt устанавливаются автоматически Strapi (серверное время)
           },
           populate: {
             sender: {
@@ -181,13 +184,16 @@ export default factories.createCoreController(
                 },
               },
             },
-            sort: { createdAt: "desc" }, // Сначала новые, потом берем limit
+            // Сортируем по createdAt в убывающем порядке (новые первыми)
+            // Это нужно для правильной работы limit и start
+            sort: { createdAt: "desc" },
             limit: limit,
             start: start,
           }
         );
 
-        // Возвращаем в правильном порядке (старые -> новые)
+        // Возвращаем в правильном порядке для фронтенда (старые -> новые)
+        // Сортировка выполняется на бэкенде для производительности
         const sortedMessages = messages.reverse();
 
         return { data: sortedMessages };
