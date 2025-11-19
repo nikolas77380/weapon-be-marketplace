@@ -567,46 +567,6 @@ export interface ApiFavouriteFavourite extends Struct.CollectionTypeSchema {
   };
 }
 
-export interface ApiMessageMessage extends Struct.CollectionTypeSchema {
-  collectionName: 'messages';
-  info: {
-    description: 'Message entity for chat system';
-    displayName: 'Message';
-    pluralName: 'messages';
-    singularName: 'message';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    createdAt: Schema.Attribute.DateTime;
-    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-    isRead: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
-    isSystem: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
-    localizations: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::message.message'
-    > &
-      Schema.Attribute.Private;
-    product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
-    publishedAt: Schema.Attribute.DateTime;
-    readBy: Schema.Attribute.Relation<
-      'manyToMany',
-      'plugin::users-permissions.user'
-    >;
-    sender: Schema.Attribute.Relation<
-      'manyToOne',
-      'plugin::users-permissions.user'
-    >;
-    text: Schema.Attribute.Text & Schema.Attribute.Required;
-    updatedAt: Schema.Attribute.DateTime;
-    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-  };
-}
-
 export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
   collectionName: 'orders';
   info: {
@@ -1439,7 +1399,6 @@ declare module '@strapi/strapi' {
       'api::certificate.certificate': ApiCertificateCertificate;
       'api::currency-rate.currency-rate': ApiCurrencyRateCurrencyRate;
       'api::favourite.favourite': ApiFavouriteFavourite;
-      'api::message.message': ApiMessageMessage;
       'api::order.order': ApiOrderOrder;
       'api::product.product': ApiProductProduct;
       'api::promo.promo': ApiPromoPromo;
