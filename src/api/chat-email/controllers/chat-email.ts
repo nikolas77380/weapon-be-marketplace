@@ -61,15 +61,12 @@ export default {
             "api::product.product",
             productId,
             {
-              fields: ["title", "name"],
+              fields: ["title"],
             }
           );
 
           if (product) {
-            chatTopic =
-              (product as any).title ||
-              (product as any).name ||
-              chatTopic;
+            chatTopic = (product as any).title || chatTopic;
           }
         } catch (productError) {
           strapi.log.warn(
