@@ -231,6 +231,7 @@ ${safeMessageText}
     `;
 
     strapi.log.info(`📧 Attempting to send chat message email to ${recipientEmail}`);
+    console.log(`[EMAIL-SEND] 📧 Attempting to send chat message email to ${recipientEmail}`);
     
     await strapi.plugins.email.services.email.send({
       to: recipientEmail,
@@ -240,8 +241,10 @@ ${safeMessageText}
     });
 
     strapi.log.info(`✅ Chat message notification sent successfully to ${recipientEmail}`);
+    console.log(`[EMAIL-SEND] ✅ Chat message notification sent successfully to ${recipientEmail}`);
   } catch (error) {
     strapi.log.error("❌ Failed to send chat message notification:", error);
+    console.error("[EMAIL-SEND] ❌ Failed to send chat message notification:", error);
     // Не выбрасываем ошибку, чтобы не прерывать отправку сообщения
   }
 }

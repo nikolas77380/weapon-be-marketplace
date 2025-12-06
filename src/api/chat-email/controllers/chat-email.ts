@@ -20,21 +20,22 @@ export default {
    * }
    */
   async notifyOfflineMessage(ctx: any) {
-    try {
-      strapi.log.info("📧 Received offline chat email request", {
-        body: ctx.request.body,
-      });
+    const body = ctx.request.body || {};
+    strapi.log.info(
+      `[CHAT-EMAIL] Received request: recipientId=${body.recipientId}, senderId=${body.senderId}, chatId=${body.chatId}`
+    );
+    console.log(
+      `[CHAT-EMAIL] 📧 Received request: recipientId=${body.recipientId}, senderId=${body.senderId}, chatId=${body.chatId}`
+    );
 
+    try {
       const { recipientId, senderId, chatId, messageText, productId } =
         ctx.request.body || {};
 
       if (!recipientId || !senderId || !chatId || !messageText) {
-        strapi.log.warn("❌ Missing required fields in offline chat email request", {
-          recipientId,
-          senderId,
-          chatId,
-          hasMessageText: !!messageText,
-        });
+        strapi.log.warn(
+          `[CHAT-EMAIL] Missing required fields: recipientId=${!!recipientId}, senderId=${!!senderId}, chatId=${!!chatId}, messageText=${!!messageText}`
+        );
         return ctx.badRequest("Missing required fields");
       }
 
@@ -49,13 +50,16 @@ export default {
 
       if (!recipient || !recipient.email) {
         strapi.log.warn(
-          `❌ Recipient ${recipientId} not found or has no email`,
+          `[CHAT-EMAIL] Recipient ${recipientId} not found or has no email`
         );
         return ctx.badRequest("Recipient not found or has no email");
       }
 
       strapi.log.info(
-        `📧 Processing offline chat email: recipient=${recipient.email}, sender=${senderId}, chatId=${chatId}`,
+        `[CHAT-EMAIL] Sending email to ${recipient.email} for chat ${chatId}`
+      );
+      console.log(
+        `[CHAT-EMAIL] 📧 Sending email to ${recipient.email} for chat ${chatId}`
       );
 
       // Load sender user (for sender name)
@@ -94,29 +98,33 @@ export default {
       }
 
       // Fire-and-forget email sending; errors are handled inside helper
-      strapi.log.info(
-        `📧 Sending chat message notification email to ${recipient.email}`,
-      );
-      
       await sendChatMessageNotification(
         strapi,
         recipient.email,
         senderName,
         chatTopic,
         messageText,
-        typeof chatId === 'string' ? parseInt(chatId, 10) : chatId
+        typeof chatId === "string" ? parseInt(chatId, 10) : chatId
       );
 
       strapi.log.info(
-        `✅ Offline chat email notification sent successfully to ${recipient.email}`,
+        `[CHAT-EMAIL] Email notification sent successfully to ${recipient.email}`
+      );
+      console.log(
+        `[CHAT-EMAIL] ✅ Email notification sent successfully to ${recipient.email}`
       );
 
       return ctx.send({ success: true });
     } catch (error) {
-      strapi.log.error("Failed to send offline chat email:", error);
+      strapi.log.error(
+        "[CHAT-EMAIL] ❌ Failed to send offline chat email:",
+        error
+      );
+      console.error(
+        "[CHAT-EMAIL] ❌ Failed to send offline chat email:",
+        error
+      );
       return ctx.internalServerError("Failed to send offline chat email");
     }
   },
 };
-
-
