@@ -230,6 +230,8 @@ ${safeMessageText}
 Це автоматичне повідомлення. Будь ласка, не відповідайте на цей email.
     `;
 
+    strapi.log.info(`📧 Attempting to send chat message email to ${recipientEmail}`);
+    
     await strapi.plugins.email.services.email.send({
       to: recipientEmail,
       subject,
@@ -237,9 +239,9 @@ ${safeMessageText}
       text: textContent,
     });
 
-    console.log(`📧 Chat message notification sent to ${recipientEmail}`);
+    strapi.log.info(`✅ Chat message notification sent successfully to ${recipientEmail}`);
   } catch (error) {
-    console.error("❌ Failed to send chat message notification:", error);
+    strapi.log.error("❌ Failed to send chat message notification:", error);
     // Не выбрасываем ошибку, чтобы не прерывать отправку сообщения
   }
 }
