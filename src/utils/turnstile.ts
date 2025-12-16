@@ -30,6 +30,12 @@ export async function validateTurnstileToken({
   details?: TurnstileResponse;
 }> {
   try {
+    // Temporary bypass: allow disabling Turnstile via env flag
+    if (process.env.TURNSTILE_DISABLED === "true") {
+      console.warn("⚠️ Turnstile validation bypassed (TURNSTILE_DISABLED=true)");
+      return { success: true };
+    }
+
     if (!token) {
       return {
         success: false,
