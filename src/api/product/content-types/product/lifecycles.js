@@ -7,7 +7,7 @@ module.exports = {
 
     try {
       // Load elasticsearch functions dynamically
-      const esUtils = await import("../../../../utils/elasticsearch.js");
+      const esUtils = await import("../../../../utils/elasticsearch");
       const { indexProduct } = esUtils;
 
       // Get full product with relations for indexing
@@ -42,10 +42,14 @@ module.exports = {
           id: fullProduct.id,
           title: fullProduct.title,
           category: fullProduct.category?.name,
+          sellerId: fullProduct.seller?.id,
+          sellerUsername: fullProduct.seller?.username,
+          status: fullProduct.status,
+          activityStatus: fullProduct.activityStatus,
         });
         await indexProduct(fullProduct);
         console.log(
-          `✅ [LIFECYCLE] Product ${result.id} successfully indexed in Elasticsearch`
+          `✅ [LIFECYCLE] Product ${result.id} successfully indexed in Elasticsearch with seller ${fullProduct.seller?.id}`
         );
       } else {
         console.log(
@@ -91,7 +95,7 @@ module.exports = {
 
     try {
       // Load elasticsearch functions dynamically
-      const esUtils = await import("../../../../utils/elasticsearch.js");
+      const esUtils = await import("../../../../utils/elasticsearch");
       const { indexProduct } = esUtils;
 
       // Get full product with relations for indexing
@@ -171,7 +175,7 @@ module.exports = {
 
     try {
       // Load elasticsearch functions dynamically
-      const esUtils = await import("../../../../utils/elasticsearch.js");
+      const esUtils = await import("../../../../utils/elasticsearch");
       const { removeProduct } = esUtils;
 
       await removeProduct(result.id);

@@ -259,12 +259,16 @@ export default factories.createCoreController(
         const filters = { ...(query.filters as any) };
 
         // Debug: log incoming query and user state
-        console.log("findPublic - Debug info:", {
+        console.log("🔍 [findPublic] Debug info:", {
           hasUser: !!authenticatedUser,
           userId: authenticatedUser?.id,
           hasAuthHeader: !!ctx.request.header.authorization,
+          authHeader: ctx.request.header.authorization
+            ? ctx.request.header.authorization.substring(0, 20) + "..."
+            : null,
           queryFilters: query.filters,
           filters,
+          url: ctx.request.url,
         });
 
         // Enforce public status filter: only available products on public listing
@@ -290,7 +294,7 @@ export default factories.createCoreController(
             sellerId === currentUserId;
 
           // Debug logging
-          console.log("Product filter check:", {
+          console.log("🔍 [findPublic] Product filter check:", {
             hasUser: !!authenticatedUser,
             currentUserId,
             filtersSeller: filters.seller,
@@ -300,23 +304,32 @@ export default factories.createCoreController(
             filtersSellerKeys: filters.seller
               ? Object.keys(filters.seller)
               : [],
+            match: sellerId === currentUserId,
           });
         } else {
-          console.log("Product filter check skipped:", {
+          console.log("🔍 [findPublic] Product filter check skipped:", {
             hasUser: !!authenticatedUser,
             hasSellerFilter: !!filters.seller,
+            authenticatedUserId: authenticatedUser?.id,
           });
         }
 
         // If seller is viewing own products, remove any status filter
         if (isSellerViewingOwnProducts) {
           delete filters.status;
-          console.log("Removed status filter for seller viewing own products");
+          console.log(
+            "✅ [findPublic] Removed status filter for seller viewing own products"
+          );
         } else if (!filters.status) {
           (filters as any).status = { $eq: "available" };
-          console.log("Applying status filter: available");
+          console.log(
+            "⚠️ [findPublic] Applying status filter: available (seller NOT viewing own products)"
+          );
         } else {
-          console.log("Status filter already present:", filters.status);
+          console.log(
+            "ℹ️ [findPublic] Status filter already present:",
+            filters.status
+          );
         }
 
         // Always exclude archived products unless seller is viewing own products
@@ -332,7 +345,10 @@ export default factories.createCoreController(
           }
         }
 
-        console.log("Final filters:", JSON.stringify(filters, null, 2));
+        console.log(
+          "📋 [findPublic] Final filters:",
+          JSON.stringify(filters, null, 2)
+        );
 
         // Handle category slug filter
         if ((query.filters as any)?.categorySlug) {
@@ -448,10 +464,17 @@ export default factories.createCoreController(
           products = orderedProducts.slice(start, start + pageSize);
         }
 
-        console.log("Products returned:", products.length);
         console.log(
-          "Product statuses:",
-          products.map((p) => ({ id: p.id, status: p.status, title: p.title }))
+          `📦 [findPublic] Products returned: ${products.length} of ${finalTotalCount} total`
+        );
+        console.log(
+          "📦 [findPublic] Product statuses:",
+          products.map((p) => ({
+            id: p.id,
+            status: p.status,
+            activityStatus: (p as any).activityStatus,
+            title: p.title,
+          }))
         );
 
         const pageCount = Math.ceil(finalTotalCount / pageSize);
@@ -892,8 +915,29 @@ export default factories.createCoreController(
           }
         }
 
-        // Elasticsearch indexing is handled in lifecycle hook (afterCreate)
-        // to avoid double indexing and ensure consistency
+        // Force Elasticsearch sync after creation as an extra safeguard
+        try {
+          const indexedProduct = await strapi
+            .service("api::product.product")
+            .indexProduct(product.id);
+
+          console.log("[FORCED ELASTICSEARCH SYNC] Product created", {
+            productId: product.id,
+            indexed: Boolean(indexedProduct),
+          });
+        } catch (esError) {
+          console.error(
+            "[FORCED ELASTICSEARCH SYNC] Failed to index product after create",
+            {
+              productId: product.id,
+              error: esError.message,
+              stack: esError.stack,
+            }
+          );
+        }
+
+        // Elasticsearch indexing is also handled in lifecycle hook (afterCreate)
+        // to avoid missing background syncs
 
         console.log("=== PRODUCT CREATE CONTROLLER SUCCESS ===");
 
