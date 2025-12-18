@@ -21,20 +21,27 @@ const createElasticsearchClient = () => {
     }
   }
 
-  if (process.env.ELASTICSEARCH_API_KEY) {
-    return new Client({
-      node,
-      auth: { apiKey: process.env.ELASTICSEARCH_API_KEY },
-    });
-  }
-
-  return new Client({
+  const clientConfig: any = {
     node,
-    auth: {
+    // Add connection timeout and retry settings
+    requestTimeout: 30000, // 30 seconds
+    pingTimeout: 3000, // 3 seconds
+    maxRetries: 3,
+    // Don't fail on connection errors immediately
+    sniffOnStart: false,
+    sniffInterval: false,
+  };
+
+  if (process.env.ELASTICSEARCH_API_KEY) {
+    clientConfig.auth = { apiKey: process.env.ELASTICSEARCH_API_KEY };
+  } else {
+    clientConfig.auth = {
       username: process.env.ELASTICSEARCH_USERNAME || "elastic",
       password: process.env.ELASTICSEARCH_PASSWORD || "changeme",
-    },
-  });
+    };
+  }
+
+  return new Client(clientConfig);
 };
 
 const client = createElasticsearchClient();
@@ -337,13 +344,14 @@ export async function indexProduct(product: any) {
         : [],
     };
 
-    console.log(`📝 Document prepared for product ${product.id}:`, {
+    console.log(`📝 [ELASTICSEARCH] Document prepared for product ${product.id}:`, {
       id: document.id,
       title: document.title,
       category: document.category?.name,
       categoryId: document.categoryId,
       categorySlug: document.categorySlug,
       seller: document.seller?.username,
+      sellerId: document.seller?.id,
       tags: document.tags?.length || 0,
       images: document.images?.length || 0,
       status: document.status,
@@ -833,16 +841,40 @@ export async function getProductAggregations(query: any, strapi?: any) {
   }
 }
 
+// Check if Elasticsearch is available
+async function checkElasticsearchConnection() {
+  try {
+    await client.ping();
+    return true;
+  } catch (error) {
+    console.error("Elasticsearch connection check failed:", error);
+    return false;
+  }
+}
+
 // Search products by seller in Elasticsearch
 export async function searchProductsBySeller(query: any) {
   try {
+    if (!client) {
+      throw new Error("Elasticsearch client is not initialized");
+    }
+
+    // Check connection before proceeding
+    const isConnected = await checkElasticsearchConnection();
+    if (!isConnected) {
+      const esUrl = process.env.ELASTICSEARCH_URL || "http://localhost:9200";
+      throw new Error(
+        `Cannot connect to Elasticsearch at ${esUrl}. Please ensure Elasticsearch is running and accessible.`
+      );
+    }
+
     const {
       searchTerm = "",
       sellerId,
       priceRange,
       currency = "USD",
       tags,
-      status = "available",
+      status = "published",
       sort = "createdAt:desc",
       page = 1,
       pageSize = 10,
@@ -851,7 +883,11 @@ export async function searchProductsBySeller(query: any) {
       categories,
     } = query;
 
-    // Build search query - no status filter to show all products
+    if (!sellerId) {
+      throw new Error("sellerId is required");
+    }
+
+    // Build search query
     const searchQuery: any = {
       bool: {
         must: [
@@ -859,8 +895,14 @@ export async function searchProductsBySeller(query: any) {
             term: { "seller.id": sellerId },
           },
         ],
+        must_not: [],
       },
     };
+
+    // Exclude archived products from search results
+    searchQuery.bool.must_not.push({
+      term: { activityStatus: "archived" },
+    });
 
     // Add text search
     if (searchTerm && searchTerm.trim()) {
@@ -908,8 +950,12 @@ export async function searchProductsBySeller(query: any) {
       });
     }
 
-    // Add status filter
-    if (availability && availability.length > 0) {
+    // Add status filter (if status is provided, use it; otherwise use availability)
+    if (status && status !== "available") {
+      searchQuery.bool.must.push({
+        term: { status: status },
+      });
+    } else if (availability && availability.length > 0) {
       searchQuery.bool.must.push({
         terms: { status: availability },
       });
@@ -993,11 +1039,21 @@ export async function searchProductsBySeller(query: any) {
           : response.hits.total.value) / pageSize
       ),
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       "Error searching products by seller in Elasticsearch:",
       error
     );
+    
+    // Provide more helpful error messages
+    if (error.name === "ConnectionError" || error.message?.includes("connect")) {
+      const esUrl = process.env.ELASTICSEARCH_URL || "http://localhost:9200";
+      throw new Error(
+        `Elasticsearch connection failed. Please ensure Elasticsearch is running at ${esUrl}. ` +
+        `Error: ${error.message || "Connection refused"}`
+      );
+    }
+    
     throw error;
   }
 }

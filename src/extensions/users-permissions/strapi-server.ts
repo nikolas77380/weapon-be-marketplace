@@ -131,6 +131,123 @@ const strapiServerOverride = (plugin) => {
     }
   };
 
+  // Override forgot-password controller to use custom reset URL
+  plugin.controllers.auth.forgotPassword = async (ctx) => {
+    const { email } = ctx.request.body;
+
+    if (!email) {
+      return ctx.badRequest("Email is required");
+    }
+
+    try {
+      const user = await strapi
+        .query("plugin::users-permissions.user")
+        .findOne({
+          where: { email: email.toLowerCase() },
+        });
+
+      if (!user) {
+        // Don't reveal if user exists or not for security
+        return ctx.send({ ok: true });
+      }
+
+      // Generate reset token using crypto
+      const crypto = require("crypto");
+      const resetPasswordToken = crypto.randomBytes(64).toString("hex");
+
+      // Update user with reset token
+      await strapi.query("plugin::users-permissions.user").update({
+        where: { id: user.id },
+        data: { resetPasswordToken },
+      });
+
+      // Send reset password email with custom URL
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const resetUrl = `${frontendUrl}/auth/reset-password?code=${resetPasswordToken}`;
+      
+      console.log("📧 Sending reset password email to:", user.email);
+      console.log("🔗 Reset URL:", resetUrl);
+      
+      await strapi.plugins["email"].services.email.send({
+        to: user.email,
+        from: process.env.SMTP_FROM || "support@esviem-defence.com",
+        replyTo: process.env.SMTP_REPLY_TO || "support@esviem-defence.com",
+        subject: "Скидання пароля - esviem-defence",
+        text: `Для скидання пароля перейдіть за посиланням: ${resetUrl}`,
+        html: `
+          <h1>Скидання пароля</h1>
+          <p>Ви запросили скидання пароля для вашого акаунту.</p>
+          <p>Натисніть на посилання нижче, щоб скинути пароль:</p>
+          <p><a href="${resetUrl}" style="display: inline-block; padding: 10px 20px; background-color: #D4AF37; color: white; text-decoration: none; border-radius: 4px;">Скинути пароль</a></p>
+          <p>Або скопіюйте та вставте це посилання у ваш браузер:</p>
+          <p style="word-break: break-all;">${resetUrl}</p>
+          <p>Якщо ви не запитували скидання пароля, проігноруйте це повідомлення.</p>
+          <p>Посилання дійсне протягом 1 години.</p>
+        `,
+      });
+
+      return ctx.send({ ok: true });
+    } catch (error) {
+      console.error("Error in forgot password:", error);
+      // Don't reveal error details for security
+      return ctx.send({ ok: true });
+    }
+  };
+
+  // Override reset-password controller to properly handle reset token
+  plugin.controllers.auth.resetPassword = async (ctx) => {
+    const { code, password, passwordConfirmation } = ctx.request.body;
+
+    if (!code || !password || !passwordConfirmation) {
+      return ctx.badRequest("Code, password, and password confirmation are required");
+    }
+
+    if (password !== passwordConfirmation) {
+      return ctx.badRequest("Passwords do not match");
+    }
+
+    try {
+      // Find user by reset token
+      const user = await strapi
+        .query("plugin::users-permissions.user")
+        .findOne({
+          where: { resetPasswordToken: code },
+          populate: { role: true },
+        });
+
+      if (!user) {
+        return ctx.badRequest("Invalid or expired reset code");
+      }
+
+      // Update password and clear reset token
+      await strapi.plugins["users-permissions"].services.user.edit(user.id, {
+        password,
+        resetPasswordToken: null,
+      });
+
+      // Generate JWT token
+      const jwt = strapi.plugins["users-permissions"].services.jwt.issue({
+        id: user.id,
+      });
+
+      // Remove sensitive data
+      const {
+        password: _,
+        resetPasswordToken: __,
+        confirmationToken: ___,
+        ...userWithoutSensitiveData
+      } = user;
+
+      return {
+        jwt,
+        user: userWithoutSensitiveData,
+      };
+    } catch (error) {
+      console.error("Error in reset password:", error);
+      return ctx.badRequest(error.message || "Failed to reset password");
+    }
+  };
+
   // Override the default callback controller
   plugin.controllers.auth.callback = async (ctx) => {
     try {

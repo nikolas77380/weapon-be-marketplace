@@ -915,29 +915,8 @@ export default factories.createCoreController(
           }
         }
 
-        // Force Elasticsearch sync after creation as an extra safeguard
-        try {
-          const indexedProduct = await strapi
-            .service("api::product.product")
-            .indexProduct(product.id);
-
-          console.log("[FORCED ELASTICSEARCH SYNC] Product created", {
-            productId: product.id,
-            indexed: Boolean(indexedProduct),
-          });
-        } catch (esError) {
-          console.error(
-            "[FORCED ELASTICSEARCH SYNC] Failed to index product after create",
-            {
-              productId: product.id,
-              error: esError.message,
-              stack: esError.stack,
-            }
-          );
-        }
-
-        // Elasticsearch indexing is also handled in lifecycle hook (afterCreate)
-        // to avoid missing background syncs
+        // Elasticsearch indexing is handled in lifecycle hook (afterCreate)
+        // to avoid double indexing and ensure consistency
 
         console.log("=== PRODUCT CREATE CONTROLLER SUCCESS ===");
 
@@ -1867,6 +1846,7 @@ export default factories.createCoreController(
 
     // Search seller products with Elasticsearch
     async searchSellerProductsElastic(ctx) {
+      let searchQuery: any = null;
       try {
         const { query, params } = ctx;
         const {
@@ -1883,12 +1863,12 @@ export default factories.createCoreController(
         } = query;
         const { sellerId } = params;
 
-        const searchQuery = {
+        searchQuery = {
           searchTerm: search,
           sellerId: Number(sellerId),
           priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
           tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
-          status,
+          status: status || "published",
           sort,
           page: Number(page),
           pageSize: Number(pageSize),
@@ -1907,6 +1887,7 @@ export default factories.createCoreController(
               ? categories
               : [categories]
             : undefined,
+          currency: query.currency || "USD", // Add currency parameter
         };
 
         const result = await strapi
@@ -1931,7 +1912,16 @@ export default factories.createCoreController(
           "Error searching seller products with Elasticsearch:",
           error
         );
-        return ctx.internalServerError("Failed to search seller products");
+        console.error("Error details:", {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          query: searchQuery,
+        });
+        return ctx.internalServerError(
+          error instanceof Error
+            ? `Failed to search seller products: ${error.message}`
+            : "Failed to search seller products"
+        );
       }
     },
 
