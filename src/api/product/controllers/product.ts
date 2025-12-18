@@ -1868,7 +1868,7 @@ export default factories.createCoreController(
           sellerId: Number(sellerId),
           priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
           tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
-          status: status || "published",
+          status: status, // Don't set default - let Elasticsearch show all active products
           sort,
           page: Number(page),
           pageSize: Number(pageSize),

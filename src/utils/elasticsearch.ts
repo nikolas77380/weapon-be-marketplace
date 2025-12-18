@@ -344,19 +344,22 @@ export async function indexProduct(product: any) {
         : [],
     };
 
-    console.log(`📝 [ELASTICSEARCH] Document prepared for product ${product.id}:`, {
-      id: document.id,
-      title: document.title,
-      category: document.category?.name,
-      categoryId: document.categoryId,
-      categorySlug: document.categorySlug,
-      seller: document.seller?.username,
-      sellerId: document.seller?.id,
-      tags: document.tags?.length || 0,
-      images: document.images?.length || 0,
-      status: document.status,
-      activityStatus: document.activityStatus,
-    });
+    console.log(
+      `📝 [ELASTICSEARCH] Document prepared for product ${product.id}:`,
+      {
+        id: document.id,
+        title: document.title,
+        category: document.category?.name,
+        categoryId: document.categoryId,
+        categorySlug: document.categorySlug,
+        seller: document.seller?.username,
+        sellerId: document.seller?.id,
+        tags: document.tags?.length || 0,
+        images: document.images?.length || 0,
+        status: document.status,
+        activityStatus: document.activityStatus,
+      }
+    );
 
     const result = await client.index({
       index: PRODUCTS_INDEX,
@@ -432,7 +435,7 @@ export async function searchProducts(query: any, strapi?: any) {
       priceRange,
       currency, // optional; when omitted we won't hard-filter by currency
       tags,
-      status = "published",
+      status, // optional; don't filter by status by default
       sort = "createdAt:desc",
       page = 1,
       pageSize = 10,
@@ -533,11 +536,14 @@ export async function searchProducts(query: any, strapi?: any) {
     }
 
     // Add status filter
+    // Don't filter by status by default - show all non-archived products
+    // Only filter if availability is explicitly provided
     if (availability && availability.length > 0) {
       searchQuery.bool.must.push({
         terms: { status: availability },
       });
     }
+    // Note: We don't filter by status="published" because products can have status="available"
 
     // Add condition filter
     if (condition && condition.length > 0) {
@@ -874,7 +880,7 @@ export async function searchProductsBySeller(query: any) {
       priceRange,
       currency = "USD",
       tags,
-      status = "published",
+      status, // optional; don't filter by status by default
       sort = "createdAt:desc",
       page = 1,
       pageSize = 10,
@@ -950,16 +956,20 @@ export async function searchProductsBySeller(query: any) {
       });
     }
 
-    // Add status filter (if status is provided, use it; otherwise use availability)
-    if (status && status !== "available") {
+    // Add status filter
+    // Don't filter by status if it's "published" (legacy) - show all non-archived products
+    // Only filter if specific status is provided and it's not "published"
+    if (status && status !== "published" && status !== "available") {
       searchQuery.bool.must.push({
         term: { status: status },
       });
     } else if (availability && availability.length > 0) {
+      // Use availability filter if provided
       searchQuery.bool.must.push({
         terms: { status: availability },
       });
     }
+    // If status is "published" or "available", don't filter - show all active products
 
     // Add condition filter
     if (condition && condition.length > 0) {
@@ -1044,16 +1054,19 @@ export async function searchProductsBySeller(query: any) {
       "Error searching products by seller in Elasticsearch:",
       error
     );
-    
+
     // Provide more helpful error messages
-    if (error.name === "ConnectionError" || error.message?.includes("connect")) {
+    if (
+      error.name === "ConnectionError" ||
+      error.message?.includes("connect")
+    ) {
       const esUrl = process.env.ELASTICSEARCH_URL || "http://localhost:9200";
       throw new Error(
         `Elasticsearch connection failed. Please ensure Elasticsearch is running at ${esUrl}. ` +
-        `Error: ${error.message || "Connection refused"}`
+          `Error: ${error.message || "Connection refused"}`
       );
     }
-    
+
     throw error;
   }
 }
