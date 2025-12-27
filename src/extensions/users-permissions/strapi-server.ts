@@ -1,4 +1,9 @@
 const strapiServerOverride = (plugin) => {
+  console.log("🔧 Loading users-permissions extension...");
+
+  // Store plugin config for use in controllers
+  const pluginConfig = plugin.config || {};
+
   // Custom registration controller with Turnstile validation
   plugin.controllers.auth.register = async (ctx) => {
     console.log("=== CUSTOM REGISTER CONTROLLER CALLED ===");
@@ -131,11 +136,13 @@ const strapiServerOverride = (plugin) => {
     }
   };
 
-  // Override forgot-password controller to use custom reset URL
+  // Override forgot-password controller to use Strapi's built-in email system
+  // Similar to how email confirmation works
+  console.log("🔧 Overriding forgotPassword controller...");
   plugin.controllers.auth.forgotPassword = async (ctx) => {
     console.log("=== CUSTOM FORGOT PASSWORD CONTROLLER CALLED ===");
     console.log("Request body:", ctx.request.body);
-    
+
     const { email } = ctx.request.body;
 
     if (!email) {
@@ -164,35 +171,77 @@ const strapiServerOverride = (plugin) => {
         data: { resetPasswordToken },
       });
 
-      // Send reset password email with custom URL
+      // Use Strapi's built-in email system with template from config
+      // Similar to sendConfirmationEmail for registration
       const frontendUrl = process.env.FRONTEND_URL;
       if (!frontendUrl) {
         console.error("❌ FRONTEND_URL environment variable is not set!");
         throw new Error("FRONTEND_URL is not configured");
       }
+
       const resetUrl = `${frontendUrl}/auth/reset-password?code=${resetPasswordToken}`;
-      
+
       console.log("📧 Sending reset password email to:", user.email);
       console.log("🔗 Reset URL:", resetUrl);
       console.log("🌐 Frontend URL from env:", frontendUrl);
-      
-      await strapi.plugins["email"].services.email.send({
-        to: user.email,
-        from: process.env.SMTP_FROM || "support@esviem-defence.com",
-        replyTo: process.env.SMTP_REPLY_TO || "support@esviem-defence.com",
-        subject: "Скидання пароля - esviem-defence",
-        text: `Для скидання пароля перейдіть за посиланням: ${resetUrl}`,
-        html: `
-          <h1>Скидання пароля</h1>
-          <p>Ви запросили скидання пароля для вашого акаунту.</p>
-          <p>Натисніть на посилання нижче, щоб скинути пароль:</p>
-          <p><a href="${resetUrl}" style="display: inline-block; padding: 10px 20px; background-color: #D4AF37; color: white; text-decoration: none; border-radius: 4px;">Скинути пароль</a></p>
-          <p>Або скопіюйте та вставте це посилання у ваш браузер:</p>
-          <p style="word-break: break-all;">${resetUrl}</p>
-          <p>Якщо ви не запитували скидання пароля, проігноруйте це повідомлення.</p>
-          <p>Посилання дійсне протягом 1 години.</p>
-        `,
-      });
+
+      // Use Strapi's email service with template from config
+      // The template is defined in config/plugins.ts under resetPassword.template
+      // Access config through strapi.config
+      const usersPermissionsConfig =
+        (strapi.config.get("plugin.users-permissions") as any) || {};
+      const emailTemplate = usersPermissionsConfig?.resetPassword?.template;
+
+      if (emailTemplate) {
+        // Use template from config (similar to email confirmation)
+        // URL should be base URL without query params, TOKEN is the reset token
+        const baseUrl = `${frontendUrl}/auth/reset-password`;
+
+        // Simple template replacement (Strapi uses lodash template, but we'll use simple replace)
+        // Replace <%= URL %> with baseUrl and <%= TOKEN %> with resetPasswordToken
+        const replaceTemplate = (template: string) => {
+          return template
+            .replace(/<%= URL %>/g, baseUrl)
+            .replace(/<%= TOKEN %>/g, resetPasswordToken);
+        };
+
+        const html = replaceTemplate(emailTemplate.html);
+        const text = replaceTemplate(emailTemplate.text);
+        const subject = replaceTemplate(emailTemplate.subject);
+
+        await strapi.plugins["email"].services.email.send({
+          to: user.email,
+          from: process.env.SMTP_FROM || "support@esviem-defence.com",
+          replyTo: process.env.SMTP_REPLY_TO || "support@esviem-defence.com",
+          subject: subject,
+          text: text,
+          html: html,
+        });
+      } else {
+        // Fallback if template not found
+        await strapi.plugins["email"].services.email.send({
+          to: user.email,
+          from: process.env.SMTP_FROM || "support@esviem-defence.com",
+          replyTo: process.env.SMTP_REPLY_TO || "support@esviem-defence.com",
+          subject: "Скидання пароля - esviem-defence",
+          text: `Для скидання пароля перейдіть за посиланням: ${resetUrl}`,
+          html: `
+            <h1>Скидання пароля</h1>
+            <p>Ви запросили скидання пароля для вашого акаунту.</p>
+            <p>Натисніть на посилання нижче, щоб скинути пароль:</p>
+            <p><a href="${resetUrl}" style="display: inline-block; padding: 10px 20px; background-color: #D4AF37; color: white; text-decoration: none; border-radius: 4px;">Скинути пароль</a></p>
+            <p>Або скопіюйте та вставте це посилання у ваш браузер:</p>
+            <p style="word-break: break-all;">${resetUrl}</p>
+            <p>Якщо ви не запитували скидання пароля, проігноруйте це повідомлення.</p>
+            <p>Посилання дійсне протягом 1 години.</p>
+          `,
+        });
+      }
+
+      console.log(
+        "✅ Reset password email sent via Strapi template to:",
+        user.email
+      );
 
       return ctx.send({ ok: true });
     } catch (error) {
@@ -207,7 +256,9 @@ const strapiServerOverride = (plugin) => {
     const { code, password, passwordConfirmation } = ctx.request.body;
 
     if (!code || !password || !passwordConfirmation) {
-      return ctx.badRequest("Code, password, and password confirmation are required");
+      return ctx.badRequest(
+        "Code, password, and password confirmation are required"
+      );
     }
 
     if (password !== passwordConfirmation) {
@@ -319,17 +370,53 @@ const strapiServerOverride = (plugin) => {
   };
 
   // Override the forgot password service to ensure custom URL is used
+  console.log("🔧 Checking user service for forgotPassword override...");
   if (plugin.services && plugin.services.user) {
-    const originalForgotPassword = plugin.services.user.forgotPassword;
-    if (originalForgotPassword) {
-      plugin.services.user.forgotPassword = async (email: string) => {
+    console.log("✅ User service found");
+    if (plugin.services.user.forgotPassword) {
+      console.log("🔧 Overriding user.forgotPassword service...");
+      const originalServiceForgotPassword = plugin.services.user.forgotPassword;
+      plugin.services.user.forgotPassword = async (
+        email: string,
+        resetURL?: string
+      ) => {
         console.log("=== CUSTOM FORGOT PASSWORD SERVICE CALLED ===");
         console.log("Email:", email);
-        // Call the custom controller logic instead
-        // This ensures we always use our custom implementation
-        return originalForgotPassword.call(plugin.services.user, email);
+        console.log("ResetURL param:", resetURL);
+
+        // Ensure we use the full URL from FRONTEND_URL
+        const frontendUrl = process.env.FRONTEND_URL;
+        if (!frontendUrl) {
+          console.error("❌ FRONTEND_URL environment variable is not set!");
+          throw new Error("FRONTEND_URL is not configured");
+        }
+
+        // If resetURL is provided but incomplete, fix it
+        let finalResetURL = resetURL;
+        if (resetURL && !resetURL.startsWith("http")) {
+          // If only query params provided, prepend frontend URL
+          finalResetURL = `${frontendUrl}/auth/reset-password${resetURL}`;
+        } else if (!resetURL) {
+          // Generate token and create URL
+          const crypto = require("crypto");
+          const resetPasswordToken = crypto.randomBytes(64).toString("hex");
+          finalResetURL = `${frontendUrl}/auth/reset-password?code=${resetPasswordToken}`;
+        }
+
+        console.log("🔗 Final reset URL:", finalResetURL);
+
+        // Call original service with fixed URL
+        return originalServiceForgotPassword.call(
+          plugin.services.user,
+          email,
+          finalResetURL
+        );
       };
+    } else {
+      console.log("⚠️ user.forgotPassword service not found");
     }
+  } else {
+    console.log("⚠️ User service not found");
   }
 
   // Override the default user controller with our custom one
@@ -357,6 +444,7 @@ const strapiServerOverride = (plugin) => {
     );
   }
 
+  console.log("✅ users-permissions extension loaded successfully");
   return plugin;
 };
 

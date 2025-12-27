@@ -22,6 +22,9 @@ export default ({ env }) => ({
       },
       resetPassword: {
         enabled: true,
+        // Set the reset password URL - this is critical!
+        resetPasswordURL:
+          env("FRONTEND_URL", "http://localhost:3000") + "/auth/reset-password",
         template: {
           subject: "Скидання пароля - esviem-defence",
           html: `
