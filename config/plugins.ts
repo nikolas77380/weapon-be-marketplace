@@ -20,6 +20,23 @@ export default ({ env }) => ({
           text: `Ласкаво просимо! Підтвердіть email: <%= URL %>?confirmation=<%= TOKEN %>`,
         },
       },
+      resetPassword: {
+        enabled: true,
+        template: {
+          subject: "Скидання пароля - esviem-defence",
+          html: `
+            <h1>Скидання пароля</h1>
+            <p>Ви запросили скидання пароля для вашого акаунту.</p>
+            <p>Натисніть на посилання нижче, щоб скинути пароль:</p>
+            <p><a href="<%= URL %>?code=<%= TOKEN %>" style="display: inline-block; padding: 10px 20px; background-color: #D4AF37; color: white; text-decoration: none; border-radius: 4px;">Скинути пароль</a></p>
+            <p>Або скопіюйте та вставте це посилання у ваш браузер:</p>
+            <p style="word-break: break-all;"><%= URL %>?code=<%= TOKEN %></p>
+            <p>Якщо ви не запитували скидання пароля, проігноруйте це повідомлення.</p>
+            <p>Посилання дійсне протягом 1 години.</p>
+          `,
+          text: `Для скидання пароля перейдіть за посиланням: <%= URL %>?code=<%= TOKEN %>`,
+        },
+      },
     },
   },
   email: {

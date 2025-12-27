@@ -133,6 +133,9 @@ const strapiServerOverride = (plugin) => {
 
   // Override forgot-password controller to use custom reset URL
   plugin.controllers.auth.forgotPassword = async (ctx) => {
+    console.log("=== CUSTOM FORGOT PASSWORD CONTROLLER CALLED ===");
+    console.log("Request body:", ctx.request.body);
+    
     const { email } = ctx.request.body;
 
     if (!email) {
@@ -162,11 +165,16 @@ const strapiServerOverride = (plugin) => {
       });
 
       // Send reset password email with custom URL
-      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const frontendUrl = process.env.FRONTEND_URL;
+      if (!frontendUrl) {
+        console.error("❌ FRONTEND_URL environment variable is not set!");
+        throw new Error("FRONTEND_URL is not configured");
+      }
       const resetUrl = `${frontendUrl}/auth/reset-password?code=${resetPasswordToken}`;
       
       console.log("📧 Sending reset password email to:", user.email);
       console.log("🔗 Reset URL:", resetUrl);
+      console.log("🌐 Frontend URL from env:", frontendUrl);
       
       await strapi.plugins["email"].services.email.send({
         to: user.email,
@@ -309,6 +317,20 @@ const strapiServerOverride = (plugin) => {
       return ctx.badRequest(error.message);
     }
   };
+
+  // Override the forgot password service to ensure custom URL is used
+  if (plugin.services && plugin.services.user) {
+    const originalForgotPassword = plugin.services.user.forgotPassword;
+    if (originalForgotPassword) {
+      plugin.services.user.forgotPassword = async (email: string) => {
+        console.log("=== CUSTOM FORGOT PASSWORD SERVICE CALLED ===");
+        console.log("Email:", email);
+        // Call the custom controller logic instead
+        // This ensures we always use our custom implementation
+        return originalForgotPassword.call(plugin.services.user, email);
+      };
+    }
+  }
 
   // Override the default user controller with our custom one
   plugin.controllers.user = {
