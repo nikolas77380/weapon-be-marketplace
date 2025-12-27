@@ -79,6 +79,237 @@ export default {
     }
   },
 
+  async updateMe(ctx) {
+    const user = ctx.state.user;
+
+    if (!user) {
+      return ctx.unauthorized("User not authenticated");
+    }
+
+    try {
+      const updateData = ctx.request.body;
+
+      // Remove fields that shouldn't be updated directly
+      const {
+        id,
+        role,
+        password,
+        resetPasswordToken,
+        confirmationToken,
+        ...allowedFields
+      } = updateData;
+
+      // Check if email is being updated and if it already exists
+      if (allowedFields.email && allowedFields.email !== user.email) {
+        const existingUser = await strapi
+          .query("plugin::users-permissions.user")
+          .findOne({
+            where: { email: allowedFields.email },
+          });
+
+        if (existingUser && existingUser.id !== user.id) {
+          return ctx.badRequest("Email already exists");
+        }
+      }
+
+      // Update user
+      const updatedUser = await strapi
+        .query("plugin::users-permissions.user")
+        .update({
+          where: { id: user.id },
+          data: allowedFields,
+          populate: {
+            role: true,
+            metadata: {
+              populate: {
+                avatar: true,
+              },
+            },
+          },
+        });
+
+      if (!updatedUser) {
+        return ctx.notFound("User not found");
+      }
+
+      // Remove sensitive data
+      const {
+        password: _,
+        resetPasswordToken: __,
+        confirmationToken: ___,
+        ...userWithoutSensitiveData
+      } = updatedUser;
+
+      return userWithoutSensitiveData;
+    } catch (error: any) {
+      console.error("Error updating user:", error);
+
+      // Handle unique constraint errors
+      if (error.message && error.message.includes("unique")) {
+        return ctx.badRequest("Email already exists");
+      }
+
+      return ctx.badRequest(error.message || "Failed to update user");
+    }
+  },
+
+  async update(ctx) {
+    // If the ID is "me", use our custom updateMe method
+    const { id } = ctx.params;
+    if (id === "me") {
+      // Call updateMe directly
+      const user = ctx.state.user;
+
+      if (!user) {
+        return ctx.unauthorized("User not authenticated");
+      }
+
+      try {
+        const updateData = ctx.request.body;
+
+        // Remove fields that shouldn't be updated directly
+        const {
+          id: _,
+          role,
+          password,
+          resetPasswordToken,
+          confirmationToken,
+          ...allowedFields
+        } = updateData;
+
+        // Check if email is being updated and if it already exists
+        if (allowedFields.email && allowedFields.email !== user.email) {
+          const existingUser = await strapi
+            .query("plugin::users-permissions.user")
+            .findOne({
+              where: { email: allowedFields.email },
+            });
+
+          if (existingUser && existingUser.id !== user.id) {
+            return ctx.badRequest("Email already exists");
+          }
+        }
+
+        // Update user
+        const updatedUser = await strapi
+          .query("plugin::users-permissions.user")
+          .update({
+            where: { id: user.id },
+            data: allowedFields,
+            populate: {
+              role: true,
+              metadata: {
+                populate: {
+                  avatar: true,
+                },
+              },
+            },
+          });
+
+        if (!updatedUser) {
+          return ctx.notFound("User not found");
+        }
+
+        // Remove sensitive data
+        const {
+          password: __,
+          resetPasswordToken: ___,
+          confirmationToken: ____,
+          ...userWithoutSensitiveData
+        } = updatedUser;
+
+        return userWithoutSensitiveData;
+      } catch (error: any) {
+        console.error("Error updating user:", error);
+
+        // Handle unique constraint errors
+        if (error.message && error.message.includes("unique")) {
+          return ctx.badRequest("Email already exists");
+        }
+
+        return ctx.badRequest(error.message || "Failed to update user");
+      }
+    }
+
+    // Otherwise, use the default Strapi update behavior
+    // But we need to preserve the original update method
+    const user = ctx.state.user;
+    if (!user) {
+      return ctx.unauthorized("User not authenticated");
+    }
+
+    // Only allow users to update their own profile
+    if (Number(id) !== user.id) {
+      return ctx.forbidden("You can only update your own profile");
+    }
+
+    try {
+      const updateData = ctx.request.body;
+
+      // Remove fields that shouldn't be updated directly
+      const {
+        id: _,
+        role,
+        password,
+        resetPasswordToken,
+        confirmationToken,
+        ...allowedFields
+      } = updateData;
+
+      // Check if email is being updated and if it already exists
+      if (allowedFields.email && allowedFields.email !== user.email) {
+        const existingUser = await strapi
+          .query("plugin::users-permissions.user")
+          .findOne({
+            where: { email: allowedFields.email },
+          });
+
+        if (existingUser && existingUser.id !== user.id) {
+          return ctx.badRequest("Email already exists");
+        }
+      }
+
+      // Update user
+      const updatedUser = await strapi
+        .query("plugin::users-permissions.user")
+        .update({
+          where: { id: Number(id) },
+          data: allowedFields,
+          populate: {
+            role: true,
+            metadata: {
+              populate: {
+                avatar: true,
+              },
+            },
+          },
+        });
+
+      if (!updatedUser) {
+        return ctx.notFound("User not found");
+      }
+
+      // Remove sensitive data
+      const {
+        password: __,
+        resetPasswordToken: ___,
+        confirmationToken: ____,
+        ...userWithoutSensitiveData
+      } = updatedUser;
+
+      return userWithoutSensitiveData;
+    } catch (error: any) {
+      console.error("Error updating user:", error);
+
+      // Handle unique constraint errors
+      if (error.message && error.message.includes("unique")) {
+        return ctx.badRequest("Email already exists");
+      }
+
+      return ctx.badRequest(error.message || "Failed to update user");
+    }
+  },
+
   async searchSellers(ctx) {
     try {
       const { query } = ctx;
