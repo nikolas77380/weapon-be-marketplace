@@ -66,6 +66,19 @@ export const productMapping: any = {
       type: "text",
       analyzer: "standard",
     },
+    titleUa: {
+      type: "text",
+      analyzer: "standard",
+      fields: { keyword: { type: "keyword" } },
+    },
+    titleEn: {
+      type: "text",
+      analyzer: "standard",
+      fields: { keyword: { type: "keyword" } },
+    },
+    descriptionUa: { type: "text", analyzer: "standard" },
+    descriptionEn: { type: "text", analyzer: "standard" },
+    contentLanguage: { type: "keyword" },
     price: { type: "float" },
     priceUSD: { type: "float" },
     priceEUR: { type: "float" },
@@ -238,9 +251,14 @@ export async function indexProduct(product: any) {
     const document = {
       id: product.id,
       title: product.title,
+      titleUa: product.titleUa || null,
+      titleEn: product.titleEn || null,
+      description: product.description,
+      descriptionUa: product.descriptionUa || null,
+      descriptionEn: product.descriptionEn || null,
+      contentLanguage: product.contentLanguage || null,
       slug: product.slug,
       sku: product.sku,
-      description: product.description,
       // Keep legacy price for backward compatibility in index, but do not use as fallback
       price: product.price ?? 0,
       priceUSD: product.priceUSD ?? 0,
@@ -462,7 +480,16 @@ export async function searchProducts(query: any, strapi?: any) {
       searchQuery.bool.must.push({
         multi_match: {
           query: searchTerm.trim(),
-          fields: ["title^2", "description", "category.name", "tags.name"],
+          fields: [
+            "title^2",
+            "titleUa^2",
+            "titleEn^2",
+            "description",
+            "descriptionUa",
+            "descriptionEn",
+            "category.name",
+            "tags.name",
+          ],
           type: "best_fields",
           fuzziness: "AUTO",
         },
@@ -915,7 +942,16 @@ export async function searchProductsBySeller(query: any) {
       searchQuery.bool.must.push({
         multi_match: {
           query: searchTerm.trim(),
-          fields: ["title^2", "description", "category.name", "tags.name"],
+          fields: [
+            "title^2",
+            "titleUa^2",
+            "titleEn^2",
+            "description",
+            "descriptionUa",
+            "descriptionEn",
+            "category.name",
+            "tags.name",
+          ],
           type: "best_fields",
           fuzziness: "AUTO",
         },

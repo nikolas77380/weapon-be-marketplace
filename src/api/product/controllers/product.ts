@@ -16,6 +16,10 @@ const getAnonymousUserId = (ctx) => {
   return `anon_${fingerprint}`;
 };
 import { generateUniqueSlug } from "../../../utils/slug";
+import {
+  translateProductContent,
+  type ContentLanguage,
+} from "../../../utils/translate";
 // Elasticsearch indexing is handled in lifecycle hook (afterCreate)
 
 // Функция для рекурсивного получения всех дочерних категорий
@@ -856,6 +860,36 @@ export default factories.createCoreController(
           );
         }
 
+        // Translate title/description to the other locale (UA <-> EN)
+        const contentLanguage: ContentLanguage =
+          productData.contentLanguage === "en" ? "en" : "ua";
+        if (contentLanguage === "ua") {
+          productData.titleUa = productData.title;
+          if (productData.description != null)
+            productData.descriptionUa = productData.description;
+          const translated = await translateProductContent(
+            productData.title,
+            productData.description,
+            "en"
+          );
+          if (translated.title) productData.titleEn = translated.title;
+          if (translated.description != null)
+            productData.descriptionEn = translated.description;
+        } else {
+          productData.titleEn = productData.title;
+          if (productData.description != null)
+            productData.descriptionEn = productData.description;
+          const translated = await translateProductContent(
+            productData.title,
+            productData.description,
+            "ua"
+          );
+          if (translated.title) productData.titleUa = translated.title;
+          if (translated.description != null)
+            productData.descriptionUa = translated.description;
+        }
+        productData.contentLanguage = contentLanguage;
+
         const createOptions: any = {
           data: productData,
           populate: {
@@ -1298,6 +1332,45 @@ export default factories.createCoreController(
         } else if (data.priceUSD !== undefined) {
           // Legacy format: priceUSD (for backward compatibility)
           await calculatePricesFromUSD(strapi, data.priceUSD, data);
+        }
+
+        // Re-translate title/description when they are updated
+        const titleChanged =
+          data.title != null && data.title !== (existingProduct as any).title;
+        const descriptionChanged =
+          data.description != null &&
+          data.description !== (existingProduct as any).description;
+        if (titleChanged || descriptionChanged) {
+          const contentLang: ContentLanguage =
+            (existingProduct as any).contentLanguage === "en" ? "en" : "ua";
+          const titleToTranslate = data.title ?? (existingProduct as any).title;
+          const descToTranslate =
+            data.description != null
+              ? data.description
+              : (existingProduct as any).description;
+          if (contentLang === "ua") {
+            data.titleUa = titleToTranslate;
+            if (descToTranslate != null) data.descriptionUa = descToTranslate;
+            const translated = await translateProductContent(
+              titleToTranslate,
+              descToTranslate ?? undefined,
+              "en"
+            );
+            if (translated.title) data.titleEn = translated.title;
+            if (translated.description != null)
+              data.descriptionEn = translated.description;
+          } else {
+            data.titleEn = titleToTranslate;
+            if (descToTranslate != null) data.descriptionEn = descToTranslate;
+            const translated = await translateProductContent(
+              titleToTranslate,
+              descToTranslate ?? undefined,
+              "ua"
+            );
+            if (translated.title) data.titleUa = translated.title;
+            if (translated.description != null)
+              data.descriptionUa = translated.description;
+          }
         }
 
         const updateOptions: any = {

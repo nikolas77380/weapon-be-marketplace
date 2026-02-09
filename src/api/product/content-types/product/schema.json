@@ -122,6 +122,30 @@
     "videoUrl": {
       "type": "string",
       "required": false
+    },
+    "titleUa": {
+      "type": "string",
+      "required": false
+    },
+    "titleEn": {
+      "type": "string",
+      "required": false
+    },
+    "descriptionUa": {
+      "type": "richtext",
+      "required": false
+    },
+    "descriptionEn": {
+      "type": "richtext",
+      "required": false
+    },
+    "contentLanguage": {
+      "type": "enumeration",
+      "enum": [
+        "ua",
+        "en"
+      ],
+      "required": false
     }
   }
 }
