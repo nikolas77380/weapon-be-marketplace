@@ -949,8 +949,25 @@ export default factories.createCoreController(
           }
         }
 
-        // Elasticsearch indexing is handled in lifecycle hook (afterCreate)
-        // to avoid double indexing and ensure consistency
+        // Index in Elasticsearch immediately so product appears in search/dashboard
+        // without waiting for lifecycle (lifecycle may fail; this ensures visibility)
+        try {
+          console.log(
+            `🔄 [CONTROLLER] Indexing new product ${product.id} in Elasticsearch`
+          );
+          await strapi
+            .service("api::product.elasticsearch")
+            .indexProduct(product.id);
+          console.log(
+            `✅ [CONTROLLER] Product ${product.id} indexed in Elasticsearch`
+          );
+        } catch (elasticError) {
+          console.error(
+            "❌ [CONTROLLER] Error indexing new product in Elasticsearch:",
+            elasticError
+          );
+          // Don't fail the request — product is saved; admin can run sync if needed
+        }
 
         console.log("=== PRODUCT CREATE CONTROLLER SUCCESS ===");
 
