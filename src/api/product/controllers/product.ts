@@ -20,7 +20,7 @@ import {
   translateProductContent,
   type ContentLanguage,
 } from "../../../utils/translate";
-// Elasticsearch indexing is handled in lifecycle hook (afterCreate)
+import { indexProduct as indexProductInElasticsearch } from "../../../utils/elasticsearch";
 
 // Функция для рекурсивного получения всех дочерних категорий
 const getAllChildCategoryIds = async (strapi, categoryId) => {
@@ -949,18 +949,44 @@ export default factories.createCoreController(
           }
         }
 
-        // Index in Elasticsearch immediately so product appears in search/dashboard
-        // without waiting for lifecycle (lifecycle may fail; this ensures visibility)
+        // Index in Elasticsearch immediately with full category data so product
+        // appears in search and on category pages (breadcrumbs). Re-fetch with
+        // populate so category/parentCategory are loaded after create/update.
         try {
-          console.log(
-            `🔄 [CONTROLLER] Indexing new product ${product.id} in Elasticsearch`
+          const fullProduct = await strapi.entityService.findOne(
+            "api::product.product",
+            product.id,
+            {
+              populate: {
+                category: {
+                  populate: { parent: true },
+                },
+                tags: true,
+                seller: {
+                  populate: {
+                    metadata: { populate: { avatar: true } },
+                  },
+                },
+                images: true,
+                subcategories: true,
+              },
+            }
           );
-          await strapi
-            .service("api::product.elasticsearch")
-            .indexProduct(product.id);
-          console.log(
-            `✅ [CONTROLLER] Product ${product.id} indexed in Elasticsearch`
-          );
+          if (fullProduct) {
+            const fullProductAny = fullProduct as any;
+            if (!fullProductAny.category) {
+              console.warn(
+                `⚠️ [CONTROLLER] Product ${product.id} has no category; may not appear on category pages`
+              );
+            }
+            console.log(
+              `🔄 [CONTROLLER] Indexing new product ${product.id} in Elasticsearch (categoryId: ${fullProductAny.category?.id ?? "none"})`
+            );
+            await indexProductInElasticsearch(fullProductAny);
+            console.log(
+              `✅ [CONTROLLER] Product ${product.id} indexed in Elasticsearch`
+            );
+          }
         } catch (elasticError) {
           console.error(
             "❌ [CONTROLLER] Error indexing new product in Elasticsearch:",
