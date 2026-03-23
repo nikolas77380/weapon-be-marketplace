@@ -81,42 +81,6 @@ export default {
     },
     {
       method: "GET",
-      path: "/products/search/elastic",
-      handler: "product.searchElastic",
-      config: {
-        auth: {
-          scope: ["find"],
-        },
-      },
-    },
-    {
-      method: "GET",
-      path: "/products/search/elastic/public",
-      handler: "product.searchElasticPublic",
-      config: {
-        auth: false,
-      },
-    },
-    {
-      method: "GET",
-      path: "/products/aggregations",
-      handler: "product.getAggregations",
-      config: {
-        auth: {
-          scope: ["find"],
-        },
-      },
-    },
-    {
-      method: "GET",
-      path: "/products/aggregations/public",
-      handler: "product.getAggregationsPublic",
-      config: {
-        auth: false,
-      },
-    },
-    {
-      method: "GET",
       path: "/products/seller/:sellerId/search/elastic",
       handler: "product.searchSellerProductsElastic",
       config: {

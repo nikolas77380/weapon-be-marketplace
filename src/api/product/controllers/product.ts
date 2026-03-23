@@ -20,8 +20,6 @@ import {
   translateProductContent,
   type ContentLanguage,
 } from "../../../utils/translate";
-import { indexProduct as indexProductInElasticsearch } from "../../../utils/elasticsearch";
-
 // Функция для рекурсивного получения всех дочерних категорий
 const getAllChildCategoryIds = async (strapi, categoryId) => {
   const childCategories = await strapi.entityService.findMany(
@@ -204,6 +202,73 @@ function sanitizeProducts(products: any[]): any[] {
   }
 
   return products.map((product) => sanitizeProductSeller(product));
+}
+
+/**
+ * Compute DB-based aggregations from a list of products.
+ * Returns the same structure the frontend expects from Elasticsearch.
+ */
+function computeAggregations(products: any[]) {
+  if (!products || products.length === 0) {
+    return {
+      priceStats: { min: 0, max: 0 },
+      priceStatsByCurrency: {
+        USD: { min: 0, max: 0 },
+        EUR: { min: 0, max: 0 },
+        UAH: { min: 0, max: 0 },
+      },
+      availability: [],
+      condition: [],
+      categories: [],
+    };
+  }
+
+  // Price stats
+  const usdPrices = products.map((p) => p.priceUSD).filter((v) => v != null && v > 0);
+  const eurPrices = products.map((p) => p.priceEUR).filter((v) => v != null && v > 0);
+  const uahPrices = products.map((p) => p.priceUAH).filter((v) => v != null && v > 0);
+
+  const safeMin = (arr: number[]) => (arr.length ? Math.min(...arr) : 0);
+  const safeMax = (arr: number[]) => (arr.length ? Math.max(...arr) : 0);
+
+  // Availability (status distribution)
+  const availabilityMap: Record<string, number> = {};
+  for (const p of products) {
+    if (p.status) availabilityMap[p.status] = (availabilityMap[p.status] || 0) + 1;
+  }
+  const availability = Object.entries(availabilityMap).map(([key, count]) => ({ key, count }));
+
+  // Condition distribution
+  const conditionMap: Record<string, number> = {};
+  for (const p of products) {
+    if (p.condition) conditionMap[p.condition] = (conditionMap[p.condition] || 0) + 1;
+  }
+  const condition = Object.entries(conditionMap).map(([key, count]) => ({ key, count }));
+
+  // Category distribution
+  const categoryMap: Record<string, { slug: string; name: string; count: number }> = {};
+  for (const p of products) {
+    if (p.category?.slug) {
+      const slug = p.category.slug;
+      if (!categoryMap[slug]) {
+        categoryMap[slug] = { slug, name: p.category.name || slug, count: 0 };
+      }
+      categoryMap[slug].count++;
+    }
+  }
+  const categories = Object.values(categoryMap);
+
+  return {
+    priceStats: { min: safeMin(usdPrices), max: safeMax(usdPrices) },
+    priceStatsByCurrency: {
+      USD: { min: safeMin(usdPrices), max: safeMax(usdPrices) },
+      EUR: { min: safeMin(eurPrices), max: safeMax(eurPrices) },
+      UAH: { min: safeMin(uahPrices), max: safeMax(uahPrices) },
+    },
+    availability,
+    condition,
+    categories,
+  };
 }
 
 export default factories.createCoreController(
@@ -949,52 +1014,6 @@ export default factories.createCoreController(
           }
         }
 
-        // Index in Elasticsearch immediately with full category data so product
-        // appears in search and on category pages (breadcrumbs). Re-fetch with
-        // populate so category/parentCategory are loaded after create/update.
-        try {
-          const fullProduct = await strapi.entityService.findOne(
-            "api::product.product",
-            product.id,
-            {
-              populate: {
-                category: {
-                  populate: { parent: true },
-                },
-                tags: true,
-                seller: {
-                  populate: {
-                    metadata: { populate: { avatar: true } },
-                  },
-                },
-                images: true,
-                subcategories: true,
-              },
-            }
-          );
-          if (fullProduct) {
-            const fullProductAny = fullProduct as any;
-            if (!fullProductAny.category) {
-              console.warn(
-                `⚠️ [CONTROLLER] Product ${product.id} has no category; may not appear on category pages`
-              );
-            }
-            console.log(
-              `🔄 [CONTROLLER] Indexing new product ${product.id} in Elasticsearch (categoryId: ${fullProductAny.category?.id ?? "none"})`
-            );
-            await indexProductInElasticsearch(fullProductAny);
-            console.log(
-              `✅ [CONTROLLER] Product ${product.id} indexed in Elasticsearch`
-            );
-          }
-        } catch (elasticError) {
-          console.error(
-            "❌ [CONTROLLER] Error indexing new product in Elasticsearch:",
-            elasticError
-          );
-          // Don't fail the request — product is saved; admin can run sync if needed
-        }
-
         console.log("=== PRODUCT CREATE CONTROLLER SUCCESS ===");
 
         // Sanitize seller fields
@@ -1450,31 +1469,6 @@ export default factories.createCoreController(
           updateOptions
         );
 
-        // Update product in Elasticsearch
-        // Note: This is a manual update, but lifecycle hook afterUpdate should also trigger
-        // This ensures update happens even if lifecycle hook fails
-        try {
-          console.log(
-            `🔄 [CONTROLLER] Manually updating product ${productId} in Elasticsearch`
-          );
-          const updatedProduct = await strapi
-            .service("api::product.elasticsearch")
-            .indexProduct(productId);
-          console.log(
-            `✅ [CONTROLLER] Product ${productId} updated in Elasticsearch:`,
-            {
-              activityStatus: (updatedProduct as any)?.activityStatus,
-              status: (updatedProduct as any)?.status,
-            }
-          );
-        } catch (elasticError) {
-          console.error(
-            "❌ [CONTROLLER] Error updating product in Elasticsearch:",
-            elasticError
-          );
-          // Don't fail the request if Elasticsearch indexing fails
-        }
-
         // Sanitize seller fields
         const sanitizedProduct = sanitizeProductSeller(product);
 
@@ -1522,19 +1516,6 @@ export default factories.createCoreController(
         }
 
         await strapi.entityService.delete("api::product.product", id);
-
-        // Remove product from Elasticsearch
-        try {
-          await strapi
-            .service("api::product.elasticsearch")
-            .removeProduct(Number(id));
-        } catch (elasticError) {
-          console.error(
-            "Error removing product from Elasticsearch:",
-            elasticError
-          );
-          // Don't fail the request if Elasticsearch removal fails
-        }
 
         return ctx.send({ message: "Product deleted successfully" });
       } catch (error) {
@@ -1792,303 +1773,166 @@ export default factories.createCoreController(
       }
     },
 
-    // Elasticsearch-powered search
-    async searchElastic(ctx) {
-      try {
-        const { query } = ctx;
-        const {
-          search = "",
-          categorySlug,
-          priceRange,
-          tags,
-          status = "available",
-          sort = "createdAt:desc",
-          page = 1,
-          pageSize = 10,
-        } = query;
-
-        const searchQuery = {
-          searchTerm: search,
-          categorySlug,
-          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
-          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
-          status,
-          sort,
-          page: Number(page),
-          pageSize: Number(pageSize),
-        };
-
-        const result = await strapi
-          .service("api::product.elasticsearch")
-          .searchProducts(searchQuery);
-
-        return ctx.send({
-          data: result.hits,
-          meta: {
-            pagination: {
-              page: result.page,
-              pageSize: result.pageSize,
-              pageCount: result.pageCount,
-              total: result.total,
-            },
-            searchTerm: search,
-          },
-        });
-      } catch (error) {
-        console.error("Error in Elasticsearch search:", error);
-        return ctx.internalServerError("Failed to search products");
-      }
-    },
-
-    // Get product aggregations for filters
-    async getAggregations(ctx) {
-      try {
-        const { query } = ctx;
-        const {
-          categorySlug,
-          priceRange,
-          tags,
-          status = "available",
-          currency,
-        } = query;
-
-        const searchQuery: any = {
-          categorySlug,
-          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
-          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
-          status,
-        };
-
-        if (currency) {
-          searchQuery.currency = currency as string;
-        }
-
-        const aggregations = await strapi
-          .service("api::product.elasticsearch")
-          .getProductAggregations(searchQuery);
-
-        return ctx.send({
-          data: aggregations,
-        });
-      } catch (error) {
-        console.error("Error getting product aggregations:", error);
-        return ctx.internalServerError("Failed to get product aggregations");
-      }
-    },
-
-    // Public Elasticsearch search
-    async searchElasticPublic(ctx) {
-      try {
-        const { query } = ctx;
-        const {
-          search = "",
-          categorySlug,
-          priceRange,
-          tags,
-          status = "available",
-          sort = "createdAt:desc",
-          page = 1,
-          pageSize = 10,
-        } = query;
-
-        const searchQuery = {
-          searchTerm: search,
-          categorySlug,
-          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
-          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
-          status,
-          sort,
-          page: Number(page),
-          pageSize: Number(pageSize),
-        };
-
-        const result = await strapi
-          .service("api::product.elasticsearch")
-          .searchProducts(searchQuery);
-
-        return ctx.send({
-          data: result.hits,
-          meta: {
-            pagination: {
-              page: result.page,
-              pageSize: result.pageSize,
-              pageCount: result.pageCount,
-              total: result.total,
-            },
-            searchTerm: search,
-          },
-        });
-      } catch (error) {
-        console.error("Error in public Elasticsearch search:", error);
-        return ctx.internalServerError("Failed to search products");
-      }
-    },
-
-    // Public aggregations
-    async getAggregationsPublic(ctx) {
-      try {
-        const { query } = ctx;
-        const {
-          categorySlug,
-          priceRange,
-          tags,
-          status = "available",
-          currency,
-        } = query;
-
-        const searchQuery: any = {
-          categorySlug,
-          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
-          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
-          status,
-        };
-
-        if (currency) {
-          searchQuery.currency = currency as string;
-        }
-
-        const aggregations = await strapi
-          .service("api::product.elasticsearch")
-          .getProductAggregations(searchQuery);
-
-        return ctx.send({
-          data: aggregations,
-        });
-      } catch (error) {
-        console.error("Error getting public product aggregations:", error);
-        return ctx.internalServerError("Failed to get product aggregations");
-      }
-    },
-
-    // Search seller products with Elasticsearch
+    // Search seller products (DB-based)
     async searchSellerProductsElastic(ctx) {
-      let searchQuery: any = null;
       try {
         const { query, params } = ctx;
         const {
           search = "",
           priceRange,
-          tags,
-          status = "published",
           sort = "createdAt:desc",
           page = 1,
           pageSize = 10,
           availability,
           condition,
           categories,
+          currency = "USD",
         } = query;
         const { sellerId } = params;
 
-        searchQuery = {
-          searchTerm: search,
-          sellerId: Number(sellerId),
-          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
-          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
-          status: status, // Don't set default - let Elasticsearch show all active products
-          sort,
-          page: Number(page),
-          pageSize: Number(pageSize),
-          availability: availability
-            ? Array.isArray(availability)
-              ? availability
-              : [availability]
-            : undefined,
-          condition: condition
-            ? Array.isArray(condition)
-              ? condition
-              : [condition]
-            : undefined,
-          categories: categories
-            ? Array.isArray(categories)
-              ? categories
-              : [categories]
-            : undefined,
-          currency: query.currency || "USD", // Add currency parameter
+        const populate = {
+          category: { populate: { parent: true } },
+          tags: true,
+          seller: { populate: { metadata: { populate: { avatar: true } } } },
+          images: true,
         };
 
-        const result = await strapi
-          .service("api::product.elasticsearch")
-          .searchProductsBySeller(searchQuery);
+        const pageNum = Number(page);
+        const pageSizeNum = Number(pageSize);
+
+        const filters: any = {
+          seller: { $eq: Number(sellerId) },
+          activityStatus: { $ne: "archived" },
+        };
+
+        // Availability filter
+        const availabilityArr = availability
+          ? Array.isArray(availability) ? availability : [availability]
+          : undefined;
+        if (availabilityArr && availabilityArr.length > 0) {
+          filters.status = { $in: availabilityArr };
+        } else {
+          filters.status = { $eq: "available" };
+        }
+
+        // Condition filter
+        const conditionArr = condition
+          ? Array.isArray(condition) ? condition : [condition]
+          : undefined;
+        if (conditionArr && conditionArr.length > 0) {
+          filters.condition = { $in: conditionArr };
+        }
+
+        // Category slugs filter
+        const categoriesArr = categories
+          ? Array.isArray(categories) ? categories : [categories]
+          : undefined;
+        if (categoriesArr && categoriesArr.length > 0) {
+          const cats = await strapi.entityService.findMany("api::category.category", {
+            filters: { slug: { $in: categoriesArr } },
+            fields: ["id"],
+          });
+          if (cats && cats.length > 0) {
+            filters.category = { $in: cats.map((c: any) => c.id) };
+          }
+        }
+
+        // Text search filter
+        const searchTerm = (search as string).trim();
+        if (searchTerm) {
+          filters.$or = [
+            { title: { $containsi: searchTerm } },
+            { description: { $containsi: searchTerm } },
+          ];
+        }
+
+        // Price range filter (use currency-specific field)
+        if (priceRange) {
+          const pr = typeof priceRange === "string" ? JSON.parse(priceRange) : priceRange;
+          const priceField = currency === "EUR" ? "priceEUR" : currency === "UAH" ? "priceUAH" : "priceUSD";
+          if (pr.min !== undefined) filters[priceField] = { ...filters[priceField], $gte: pr.min };
+          if (pr.max !== undefined) filters[priceField] = { ...filters[priceField], $lte: pr.max };
+        }
+
+        // Parse sort
+        let sortParam: any = [{ createdAt: "desc" }];
+        if (sort && typeof sort === "string") {
+          const [field, order] = (sort as string).split(":");
+          if (field && order) sortParam = [{ [field]: order }];
+        }
+
+        const totalCount = await strapi.entityService.count("api::product.product", { filters });
+        const products = await strapi.entityService.findMany("api::product.product", {
+          filters,
+          sort: sortParam,
+          populate,
+          start: (pageNum - 1) * pageSizeNum,
+          limit: pageSizeNum,
+        });
+
+        const pageCount = Math.ceil(totalCount / pageSizeNum);
+        const sanitizedProducts = sanitizeProducts(products);
 
         return ctx.send({
-          data: result.hits,
+          data: sanitizedProducts,
           meta: {
-            pagination: {
-              page: result.page,
-              pageSize: result.pageSize,
-              pageCount: result.pageCount,
-              total: result.total,
-            },
-            searchTerm: search,
+            pagination: { page: pageNum, pageSize: pageSizeNum, pageCount, total: totalCount },
+            searchTerm,
             sellerId: Number(sellerId),
           },
         });
       } catch (error) {
-        console.error(
-          "Error searching seller products with Elasticsearch:",
-          error
-        );
-        console.error("Error details:", {
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-          query: searchQuery,
-        });
-        return ctx.internalServerError(
-          error instanceof Error
-            ? `Failed to search seller products: ${error.message}`
-            : "Failed to search seller products"
-        );
+        console.error("Error searching seller products:", error);
+        return ctx.internalServerError("Failed to search seller products");
       }
     },
 
-    // Get seller product aggregations
+    // Get seller product aggregations (DB-based)
     async getSellerProductAggregations(ctx) {
       try {
         const { query, params } = ctx;
-        const {
-          priceRange,
-          tags,
-          status = "published",
-          availability,
-          condition,
-          categories,
-        } = query;
+        const { availability, condition, categories } = query;
         const { sellerId } = params;
 
-        const searchQuery = {
-          sellerId: Number(sellerId),
-          priceRange: priceRange ? JSON.parse(priceRange as string) : undefined,
-          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
-          status,
-          availability: availability
-            ? Array.isArray(availability)
-              ? availability
-              : [availability]
-            : undefined,
-          condition: condition
-            ? Array.isArray(condition)
-              ? condition
-              : [condition]
-            : undefined,
-          categories: categories
-            ? Array.isArray(categories)
-              ? categories
-              : [categories]
-            : undefined,
+        const filters: any = {
+          seller: { $eq: Number(sellerId) },
+          activityStatus: { $ne: "archived" },
+          status: { $eq: "available" },
         };
 
-        const aggregations = await strapi
-          .service("api::product.elasticsearch")
-          .getSellerProductAggregations(searchQuery);
+        const conditionArr = condition
+          ? Array.isArray(condition) ? condition : [condition]
+          : undefined;
+        if (conditionArr && conditionArr.length > 0) {
+          filters.condition = { $in: conditionArr };
+        }
 
-        return ctx.send({
-          data: aggregations,
+        const categoriesArr = categories
+          ? Array.isArray(categories) ? categories : [categories]
+          : undefined;
+        if (categoriesArr && categoriesArr.length > 0) {
+          const cats = await strapi.entityService.findMany("api::category.category", {
+            filters: { slug: { $in: categoriesArr } },
+            fields: ["id"],
+          });
+          if (cats && cats.length > 0) {
+            filters.category = { $in: cats.map((c: any) => c.id) };
+          }
+        }
+
+        const products: any[] = await strapi.entityService.findMany("api::product.product", {
+          filters,
+          fields: ["priceUSD", "priceEUR", "priceUAH", "status", "condition"],
+          populate: { category: { fields: ["id", "name", "slug"] } },
+          limit: -1,
         });
+
+        const aggregations = computeAggregations(products);
+
+        return ctx.send({ data: aggregations });
       } catch (error) {
         console.error("Error getting seller product aggregations:", error);
-        return ctx.internalServerError(
-          "Failed to get seller product aggregations"
-        );
+        return ctx.internalServerError("Failed to get seller product aggregations");
       }
     },
 
