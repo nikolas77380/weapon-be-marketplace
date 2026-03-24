@@ -14,15 +14,5 @@ export default {
    * This gives you an opportunity to set up your data model,
    * run jobs, or perform some special logic.
    */
-  async bootstrap({ strapi }) {
-    // Initialize Elasticsearch
-    try {
-      const { initializeElasticsearch } = await import("./utils/elasticsearch");
-      await initializeElasticsearch();
-      console.log("Elasticsearch initialized successfully");
-    } catch (error) {
-      console.error("Failed to initialize Elasticsearch:", error);
-      // Don't fail the bootstrap if Elasticsearch is not available
-    }
-  },
+  async bootstrap({ strapi }) {},
 };
