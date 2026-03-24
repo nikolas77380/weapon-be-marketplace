@@ -202,7 +202,7 @@ export default factories.createCoreController(
         const pageSizeNum = Number(pageSize);
 
         const filters: any = {
-          category: { $in: allCategoryIds },
+          category: { id: { $in: allCategoryIds } },
           activityStatus: { $ne: "archived" },
         };
 
@@ -310,7 +310,7 @@ export default factories.createCoreController(
         }
 
         const filters: any = {
-          category: { $in: allCategoryIds },
+          category: { id: { $in: allCategoryIds } },
           activityStatus: { $ne: "archived" },
         };
 

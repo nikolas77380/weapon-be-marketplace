@@ -442,7 +442,7 @@ export default factories.createCoreController(
             const allCategoryIds = [mainCategoryId, ...childCategoryIds];
 
             // Фильтруем продукты по всем категориям
-            filters.category = { $in: allCategoryIds };
+            filters.category = { id: { $in: allCategoryIds } };
           } else {
             // If category not found, return empty results
             return ctx.send({
@@ -1093,7 +1093,7 @@ export default factories.createCoreController(
             const allCategoryIds = [mainCategoryId, ...childCategoryIds];
 
             // Фильтруем продукты по всем категориям
-            filters.category = { $in: allCategoryIds };
+            filters.category = { id: { $in: allCategoryIds } };
           } else {
             // If category not found, return empty results
             return ctx.send({
@@ -1593,7 +1593,7 @@ export default factories.createCoreController(
               mainCategoryId
             );
             const allCategoryIds = [mainCategoryId, ...childCategoryIds];
-            filters.category = { $in: allCategoryIds };
+            filters.category = { id: { $in: allCategoryIds } };
           }
         }
 
@@ -1718,7 +1718,7 @@ export default factories.createCoreController(
               mainCategoryId
             );
             const allCategoryIds = [mainCategoryId, ...childCategoryIds];
-            filters.category = { $in: allCategoryIds };
+            filters.category = { id: { $in: allCategoryIds } };
           }
         }
 
@@ -1833,7 +1833,7 @@ export default factories.createCoreController(
             fields: ["id"],
           });
           if (cats && cats.length > 0) {
-            filters.category = { $in: cats.map((c: any) => c.id) };
+            filters.category = { id: { $in: cats.map((c: any) => c.id) } };
           }
         }
 
@@ -1916,7 +1916,7 @@ export default factories.createCoreController(
             fields: ["id"],
           });
           if (cats && cats.length > 0) {
-            filters.category = { $in: cats.map((c: any) => c.id) };
+            filters.category = { id: { $in: cats.map((c: any) => c.id) } };
           }
         }
 
