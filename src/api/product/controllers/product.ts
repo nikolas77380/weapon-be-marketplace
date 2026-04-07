@@ -20,6 +20,11 @@ import {
   translateProductContent,
   type ContentLanguage,
 } from "../../../utils/translate";
+import { sanitizeProducts, sanitizeProductSeller } from "../utils/sanitizer";
+import {
+  calculatePricesFromCurrency,
+  calculatePricesFromUSD,
+} from "../utils/price";
 // Функция для рекурсивного получения всех дочерних категорий
 const getAllChildCategoryIds = async (strapi, categoryId) => {
   const childCategories = await strapi.entityService.findMany(
@@ -44,165 +49,6 @@ const getAllChildCategoryIds = async (strapi, categoryId) => {
   return allChildIds;
 };
 
-/**
- * Helper function to auto-calculate prices in all currencies from any currency
- * @param strapi - Strapi instance
- * @param price - Price value in the specified currency
- * @param currency - Currency code (USD, EUR, or UAH)
- * @param data - Product data object to update
- */
-async function calculatePricesFromCurrency(
-  strapi: any,
-  price: number | string | undefined | null,
-  currency: string | undefined | null,
-  data: any
-): Promise<void> {
-  if (
-    price === undefined ||
-    price === null ||
-    currency === undefined ||
-    currency === null
-  ) {
-    return;
-  }
-
-  const validCurrencies = ["USD", "EUR", "UAH"];
-  const upperCurrency = String(currency).toUpperCase();
-
-  if (!validCurrencies.includes(upperCurrency)) {
-    console.warn(`Invalid currency: ${currency}. Skipping price calculation.`);
-    return;
-  }
-
-  try {
-    const apiKey = process.env.FIXER_API_KEY;
-    const currencyRateService = strapi.service(
-      "api::currency-rate.currency-rate"
-    );
-
-    // Get latest rates (with auto-update if needed)
-    const rates = await currencyRateService.getLatestRatesOrUpdate(apiKey);
-
-    if (rates) {
-      const priceValue = parseFloat(String(price));
-      if (!isNaN(priceValue) && priceValue > 0) {
-        // Rates are stored with USD as base (1 USD = X EUR, 1 USD = X UAH)
-        const usdRate = parseFloat(rates.USD) || 1.0;
-        const eurRate = parseFloat(rates.EUR) || 0;
-        const uahRate = parseFloat(rates.UAH) || 0;
-
-        let priceUSD: number;
-        let priceEUR: number;
-        let priceUAH: number;
-
-        // Convert from input currency to USD first
-        if (upperCurrency === "USD") {
-          priceUSD = priceValue;
-        } else if (upperCurrency === "EUR") {
-          // Convert EUR to USD: if 1 USD = X EUR, then 1 EUR = 1/X USD
-          priceUSD = priceValue / eurRate;
-        } else if (upperCurrency === "UAH") {
-          // Convert UAH to USD: if 1 USD = X UAH, then 1 UAH = 1/X USD
-          priceUSD = priceValue / uahRate;
-        } else {
-          priceUSD = priceValue;
-        }
-
-        // Calculate other currencies from USD
-        priceEUR = priceUSD * eurRate;
-        priceUAH = priceUSD * uahRate;
-
-        // Update data object
-        data.priceUSD = parseFloat(priceUSD.toFixed(2));
-        data.priceEUR = parseFloat(priceEUR.toFixed(2));
-        data.priceUAH = parseFloat(priceUAH.toFixed(2));
-
-        console.log(
-          `Auto-calculated prices from ${upperCurrency}: ${upperCurrency}=${priceValue}, USD=${data.priceUSD}, EUR=${data.priceEUR}, UAH=${data.priceUAH}`
-        );
-      }
-    } else {
-      console.warn("Currency rates not available, skipping auto-calculation");
-    }
-  } catch (error) {
-    console.error(
-      `Error calculating prices from ${currency}:`,
-      error,
-      "Continuing without price calculation"
-    );
-    // Continue without price calculation if it fails
-  }
-}
-
-/**
- * Legacy function for backward compatibility
- * @deprecated Use calculatePricesFromCurrency instead
- */
-async function calculatePricesFromUSD(
-  strapi: any,
-  priceUSD: number | string | undefined | null,
-  data: any
-): Promise<void> {
-  await calculatePricesFromCurrency(strapi, priceUSD, "USD", data);
-}
-
-/**
- * Helper function to filter seller fields, returning only id, username, companyName, avatarUrl, and country
- */
-function filterSellerFields(seller: any): any {
-  if (!seller) {
-    return seller;
-  }
-
-  const filteredSeller: any = {
-    id: seller.id,
-    username: seller.username,
-  };
-
-  // Get companyName from metadata if available
-  if (seller.metadata && seller.metadata.companyName) {
-    filteredSeller.companyName = seller.metadata.companyName;
-  }
-
-  // Get avatarUrl from metadata if available
-  if (seller.metadata && seller.metadata.avatar?.url) {
-    filteredSeller.avatarUrl = seller.metadata.avatar.url;
-    filteredSeller.avatar = seller.metadata.avatar;
-  }
-
-  // Get country from metadata if available
-  if (seller.metadata && seller.metadata.country) {
-    filteredSeller.country = seller.metadata.country;
-  }
-
-  return filteredSeller;
-}
-
-/**
- * Helper function to sanitize product seller fields
- */
-function sanitizeProductSeller(product: any): any {
-  if (!product) {
-    return product;
-  }
-
-  if (product.seller) {
-    product.seller = filterSellerFields(product.seller);
-  }
-
-  return product;
-}
-
-/**
- * Helper function to sanitize array of products
- */
-function sanitizeProducts(products: any[]): any[] {
-  if (!Array.isArray(products)) {
-    return products;
-  }
-
-  return products.map((product) => sanitizeProductSeller(product));
-}
 
 /**
  * Compute DB-based aggregations from a list of products.
@@ -1774,7 +1620,7 @@ export default factories.createCoreController(
     },
 
     // Search seller products (DB-based)
-    async searchSellerProductsElastic(ctx) {
+    async searchSellerProducts(ctx) {
       try {
         const { query, params } = ctx;
         const {

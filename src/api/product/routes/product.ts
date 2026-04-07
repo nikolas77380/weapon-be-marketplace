@@ -81,8 +81,8 @@ export default {
     },
     {
       method: "GET",
-      path: "/products/seller/:sellerId/search/elastic",
-      handler: "product.searchSellerProductsElastic",
+      path: "/products/seller/:sellerId/search",
+      handler: "product.searchSellerProducts",
       config: {
         auth: false,
       },

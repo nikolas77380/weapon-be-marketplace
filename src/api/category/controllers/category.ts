@@ -3,6 +3,7 @@
  */
 
 import { factories } from "@strapi/strapi";
+import { sanitizeProducts } from "../../product/utils/sanitizer";
 
 // Recursively get all child category IDs
 const getAllChildCategoryIds = async (strapi, categoryId) => {
@@ -259,8 +260,11 @@ export default factories.createCoreController(
 
         const pageCount = Math.ceil(totalCount / pageSizeNum);
 
+        // Sanitize seller fields in products
+        const sanitizedProducts = sanitizeProducts(products);
+
         return ctx.send({
-          data: products,
+          data: sanitizedProducts,
           meta: {
             pagination: { page: pageNum, pageSize: pageSizeNum, pageCount, total: totalCount },
             searchTerm,
